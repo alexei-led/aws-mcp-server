@@ -5,6 +5,7 @@
 [![Linter: Ruff](https://img.shields.io/badge/Linter-Ruff-brightgreen?style=flat-square)](https://github.com/alexei-led/aws-mcp-server)
 [![Image Tags](https://ghcr-badge.egpl.dev/alexei-led/aws-mcp-server/tags?color=%2344cc11&ignore=latest&n=4&label=image+tags&trim=)](https://github.com/alexei-led/aws-mcp-server/pkgs/container/aws-mcp-server/versions)
 [![Image Size](https://ghcr-badge.egpl.dev/alexei-led/aws-mcp-server/size?color=%2344cc11&tag=latest&label=image+size&trim=)](https://github.com/alexei-led/aws-mcp-server/pkgs/container/aws-mcp-server)
+[![smithery badge](https://smithery.ai/badge/@alexei-led/aws-mcp-server)](https://smithery.ai/server/@alexei-led/aws-mcp-server)
 
 A lightweight service that enables AI assistants to execute AWS CLI commands through the Model Context Protocol (MCP).
 
@@ -43,6 +44,14 @@ The video demonstrates using Claude Desktop with AWS MCP Server to create a new 
 - AWS credentials configured
 
 ## Getting Started
+
+### Installing via Smithery
+
+To install AWS MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@alexei-led/aws-mcp-server):
+
+```bash
+npx -y @smithery/cli install @alexei-led/aws-mcp-server --client claude
+```
 
 ### Option 1: Using Docker (Recommended)
 
