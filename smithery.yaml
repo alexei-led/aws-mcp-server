@@ -1,0 +1,48 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    properties:
+      awsMcpTimeout:
+        type: number
+        default: 300
+        description: Command execution timeout in seconds.
+      awsMcpMaxOutput:
+        type: number
+        default: 100000
+        description: Maximum output size in characters.
+      awsMcpTransport:
+        type: string
+        default: stdio
+        description: Transport protocol to use ('stdio' or 'sse').
+      awsProfile:
+        type: string
+        default: default
+        description: AWS profile to use.
+      awsRegion:
+        type: string
+        default: us-east-1
+        description: AWS region to use.
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({
+      command: 'python',
+      args: ['-m', 'aws_mcp_server'],
+      env: {
+        AWS_MCP_TIMEOUT: String(config.awsMcpTimeout || 300),
+        AWS_MCP_MAX_OUTPUT: String(config.awsMcpMaxOutput || 100000),
+        AWS_MCP_TRANSPORT: config.awsMcpTransport || 'stdio',
+        AWS_PROFILE: config.awsProfile || 'default',
+        AWS_REGION: config.awsRegion || 'us-east-1'
+      }
+    })
+  exampleConfig:
+    awsMcpTimeout: 300
+    awsMcpMaxOutput: 100000
+    awsMcpTransport: stdio
+    awsProfile: default
+    awsRegion: us-east-1
