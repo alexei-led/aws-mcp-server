@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/alexei-led-aws-mcp-server-badge.png)](https://mseep.ai/app/alexei-led-aws-mcp-server)
+
 # AWS Model Context Protocol (MCP) Server
 
 [![CI](https://github.com/alexei-led/aws-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/alexei-led/aws-mcp-server/actions/workflows/ci.yml)
