@@ -6,6 +6,8 @@
 [![Image Tags](https://ghcr-badge.egpl.dev/alexei-led/aws-mcp-server/tags?color=%2344cc11&ignore=latest&n=4&label=image+tags&trim=)](https://github.com/alexei-led/aws-mcp-server/pkgs/container/aws-mcp-server/versions)
 [![Image Size](https://ghcr-badge.egpl.dev/alexei-led/aws-mcp-server/size?color=%2344cc11&tag=latest&label=image+size&trim=)](https://github.com/alexei-led/aws-mcp-server/pkgs/container/aws-mcp-server)
 
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/alexei-led/aws-mcp-server)](https://archestra.ai/mcp-catalog/alexei-led__aws-mcp-server)
+
 A lightweight service that enables AI assistants to execute AWS CLI commands through the Model Context Protocol (MCP).
 
 ## Overview
