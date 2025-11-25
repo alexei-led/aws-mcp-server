@@ -13,8 +13,11 @@ Environment variables:
 - AWS_MCP_SECURITY_CONFIG: Path to custom security configuration file
 """
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Command execution settings
 DEFAULT_TIMEOUT = int(os.environ.get("AWS_MCP_TIMEOUT", "300"))
@@ -77,3 +80,61 @@ AWS MCP Server provides a comprehensive interface to the AWS CLI with best pract
 
 # Application paths
 BASE_DIR = Path(__file__).parent.parent.parent
+
+
+def is_running_in_docker() -> bool:
+    """Detect if the application is running inside a Docker container.
+
+    Returns:
+        True if running in Docker, False otherwise
+    """
+    # Check for .dockerenv file (present in most Docker containers)
+    if Path("/.dockerenv").exists():
+        return True
+
+    # Check cgroup for docker/containerd signatures
+    try:
+        with open("/proc/1/cgroup", "r") as f:
+            cgroup_content = f.read()
+            if "docker" in cgroup_content or "containerd" in cgroup_content:
+                return True
+    except (FileNotFoundError, PermissionError):
+        pass
+
+    # Check for container environment variable (often set in container runtimes)
+    if os.environ.get("container"):
+        return True
+
+    return False
+
+
+def check_security_warnings() -> None:
+    """Log security warnings for potentially risky configurations.
+
+    This function checks the runtime environment and logs appropriate
+    warnings about security implications.
+    """
+    # Check if running in Docker
+    in_docker = is_running_in_docker()
+
+    if not in_docker:
+        logger.warning(
+            "SECURITY WARNING: Running outside Docker container. "
+            "Docker deployment is strongly recommended for security isolation. "
+            "Without Docker, piped commands (curl, wget, rm, etc.) can affect "
+            "the host filesystem and potentially exfiltrate data. "
+            "See README.md Security Considerations for details."
+        )
+
+    # Check for permissive security mode
+    if SECURITY_MODE.lower() == "permissive":
+        logger.warning(
+            "SECURITY WARNING: Running in PERMISSIVE security mode. "
+            "Dangerous commands will be logged but NOT blocked. "
+            "This mode should only be used for testing/development. "
+            "Set AWS_MCP_SECURITY_MODE=strict for production use."
+        )
+
+    # Log security status
+    if in_docker and SECURITY_MODE.lower() == "strict":
+        logger.info("Security: Running in Docker with strict mode - recommended configuration")

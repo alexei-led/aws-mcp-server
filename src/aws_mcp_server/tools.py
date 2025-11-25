@@ -16,7 +16,19 @@ from aws_mcp_server.config import DEFAULT_TIMEOUT, MAX_OUTPUT_SIZE
 # Configure module logger
 logger = logging.getLogger(__name__)
 
-# List of allowed Unix commands that can be used in a pipe
+# List of allowed Unix commands that can be used in a pipe.
+#
+# Security Note: These commands are whitelisted for legitimate AWS CLI output
+# processing. Some commands (curl, wget, ssh, rm, etc.) could potentially be
+# misused in non-Docker deployments. Docker deployment is strongly recommended
+# as it provides filesystem and network isolation. The server logs a security
+# warning at startup when running outside Docker.
+#
+# Categories:
+# - Text processing (grep, sed, awk, jq): Essential for parsing AWS CLI output
+# - File operations (cat, ls, head, tail): Reading and displaying data
+# - Networking (curl, wget, ssh): Legitimate AWS workflows (downloading, EC2 access)
+# - System info (ps, df, du): Diagnostic information
 ALLOWED_UNIX_COMMANDS = [
     # File operations
     "cat",
@@ -83,21 +95,132 @@ class CommandResult(TypedDict):
     output: str
 
 
+# Dangerous patterns in Unix commands that could be exploited for arbitrary code execution
+# or other security issues. These patterns are checked against the full command string.
+DANGEROUS_UNIX_PATTERNS: dict[str, list[str]] = {
+    # awk can execute shell commands via system() and can pipe to shell
+    "awk": [
+        "system(",  # system() function executes shell commands
+        "getline",  # getline can read from commands via pipe
+        '|"',  # Pipe to shell
+        '"\\|',  # Pipe to shell (escaped)
+        '| "',  # Pipe to shell with space
+    ],
+    # find can execute arbitrary commands via -exec and -delete
+    "find": [
+        "-exec",  # Execute commands on found files
+        "-execdir",  # Execute commands in file's directory
+        "-ok",  # Execute with confirmation (still dangerous)
+        "-okdir",  # Execute in directory with confirmation
+        "-delete",  # Delete found files
+    ],
+    # xargs executes commands with piped arguments - inherently dangerous
+    "xargs": [
+        "",  # Block all xargs usage - it's designed to execute commands
+    ],
+    # sed can execute commands in some versions via the 'e' command
+    "sed": [
+        "/e",  # Execute pattern space as shell command (GNU sed)
+        " e",  # Execute command flag
+        ";e",  # Execute after other command
+    ],
+    # curl/wget data exfiltration via POST/upload
+    "curl": [
+        "-X POST",  # POST requests could exfiltrate data
+        "--data",  # POST data
+        "-d ",  # POST data shorthand
+        "--upload-file",  # Upload files
+        "-T ",  # Upload shorthand
+        "-F ",  # Form data upload
+        "--form",  # Form data upload
+    ],
+    "wget": [
+        "--post-data",  # POST requests
+        "--post-file",  # POST file contents
+        "--body-data",  # Request body
+        "--body-file",  # Request body from file
+    ],
+    # rm with dangerous flags
+    "rm": [
+        "-rf /",  # Recursive force delete from root
+        "-rf /*",  # Recursive force delete everything
+        "-rf ~",  # Recursive force delete home
+        "--no-preserve-root",  # Allow deleting root
+    ],
+    # chmod/chown on sensitive paths
+    "chmod": [
+        " /",  # Modifying root or system files
+        " /etc",
+        " /usr",
+        " /bin",
+        " /sbin",
+    ],
+    "chown": [
+        " /",  # Modifying root or system files
+        " /etc",
+        " /usr",
+        " /bin",
+        " /sbin",
+    ],
+}
+
+
+def check_dangerous_patterns(command: str, cmd_name: str) -> str | None:
+    """Check if a command contains dangerous patterns.
+
+    Args:
+        command: The full command string to check
+        cmd_name: The name of the Unix command
+
+    Returns:
+        Error message if dangerous pattern found, None otherwise
+    """
+    if cmd_name not in DANGEROUS_UNIX_PATTERNS:
+        return None
+
+    patterns = DANGEROUS_UNIX_PATTERNS[cmd_name]
+    command_lower = command.lower()
+
+    for pattern in patterns:
+        # Empty pattern means block all usage of this command
+        if pattern == "":
+            return f"Command '{cmd_name}' is not allowed in pipes due to security risks"
+
+        if pattern.lower() in command_lower:
+            return f"Dangerous pattern '{pattern}' detected in {cmd_name} command"
+
+    return None
+
+
 def validate_unix_command(command: str) -> bool:
     """Validate that a command is an allowed Unix command.
+
+    This function checks both the command name against the allowlist
+    and validates that no dangerous options/patterns are present.
 
     Args:
         command: The Unix command to validate
 
     Returns:
-        True if the command is valid, False otherwise
+        True if the command is valid and safe, False otherwise
     """
     cmd_parts = shlex.split(command)
     if not cmd_parts:
         return False
 
+    cmd_name = cmd_parts[0]
+
     # Check if the command is in the allowed list
-    return cmd_parts[0] in ALLOWED_UNIX_COMMANDS
+    if cmd_name not in ALLOWED_UNIX_COMMANDS:
+        return False
+
+    # Check for dangerous patterns in specific commands
+    error = check_dangerous_patterns(command, cmd_name)
+    if error:
+        logger.warning(f"Blocked dangerous Unix command: {error}")
+        return False
+
+    return True
 
 
 def is_pipe_command(command: str) -> bool:

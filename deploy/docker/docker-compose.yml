@@ -9,12 +9,21 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ~/.aws://home/appuser/.aws:ro # Mount AWS credentials as read-only
+      - ~/.aws:/home/appuser/.aws:ro # Mount AWS credentials as read-only
     environment:
       - AWS_PROFILE=default # Specify default AWS profile
       - AWS_MCP_TIMEOUT=300 # Default timeout in seconds (5 minutes)
       - AWS_MCP_TRANSPORT=stdio # Transport protocol ("stdio" or "sse")
       # - AWS_MCP_MAX_OUTPUT=100000  # Uncomment to set max output size
+    # Security hardening options
+    read_only: true # Make container filesystem read-only
+    tmpfs:
+      - /tmp:size=64M,mode=1777 # Temporary storage for any runtime needs
+      - /app/logs:size=32M,mode=1777 # Writable logs directory
+    security_opt:
+      - no-new-privileges:true # Prevent privilege escalation
+    cap_drop:
+      - ALL # Drop all Linux capabilities
     restart: unless-stopped
 # To build multi-architecture images:
 # 1. Set up Docker buildx: docker buildx create --name mybuilder --use

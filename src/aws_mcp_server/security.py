@@ -16,9 +16,10 @@ import yaml
 
 from aws_mcp_server.config import SECURITY_CONFIG_PATH, SECURITY_MODE
 from aws_mcp_server.tools import (
+    ALLOWED_UNIX_COMMANDS,
+    check_dangerous_patterns,
     is_pipe_command,
     split_pipe_command,
-    validate_unix_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -546,8 +547,16 @@ def validate_pipe_command(pipe_command: str) -> None:
         if not cmd_parts:
             raise ValueError(f"Empty command at position {i} in pipe")
 
-        if not validate_unix_command(cmd):
-            raise ValueError(f"Command '{cmd_parts[0]}' at position {i} in pipe is not allowed. Only AWS commands and basic Unix utilities are permitted.")
+        cmd_name = cmd_parts[0]
+
+        # Check if command is in the allowed list
+        if cmd_name not in ALLOWED_UNIX_COMMANDS:
+            raise ValueError(f"Command '{cmd_name}' at position {i} in pipe is not allowed. Only AWS commands and basic Unix utilities are permitted.")
+
+        # Check for dangerous patterns in the command
+        dangerous_error = check_dangerous_patterns(cmd, cmd_name)
+        if dangerous_error:
+            raise ValueError(f"Security violation at position {i} in pipe: {dangerous_error}. This command option is blocked for security reasons.")
 
     logger.debug(f"Pipe command validation successful: {pipe_command}")
 

@@ -22,7 +22,7 @@ from aws_mcp_server.cli_executor import (
     execute_aws_command,
     get_command_help,
 )
-from aws_mcp_server.config import INSTRUCTIONS
+from aws_mcp_server.config import INSTRUCTIONS, check_security_warnings
 from aws_mcp_server.prompts import register_prompts
 from aws_mcp_server.resources import register_resources
 
@@ -33,8 +33,12 @@ logger = logging.getLogger("aws-mcp-server")
 
 # Run startup checks in synchronous context
 def run_startup_checks():
-    """Run startup checks to ensure AWS CLI is installed."""
+    """Run startup checks to ensure AWS CLI is installed and security is configured."""
     logger.info("Running startup checks...")
+
+    # Check security configuration and environment
+    check_security_warnings()
+
     if not asyncio.run(check_aws_cli_installed()):
         logger.error("AWS CLI is not installed or not in PATH. Please install AWS CLI.")
         sys.exit(1)
