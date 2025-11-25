@@ -32,7 +32,10 @@ def test_is_service_command_safe():
     assert is_service_command_safe("aws s3 rb s3://my-bucket", "s3") is False
 
     # Test with unknown service
-    assert is_service_command_safe("aws unknown-service command", "unknown-service") is False
+    assert (
+        is_service_command_safe("aws unknown-service command", "unknown-service")
+        is False
+    )
 
 
 def test_check_regex_rules():
@@ -118,7 +121,9 @@ def test_validate_aws_command_regex():
         with patch("aws_mcp_server.security.check_regex_rules") as mock_check:
             mock_check.return_value = "Using sensitive profiles is restricted"
 
-            with pytest.raises(ValueError, match="Using sensitive profiles is restricted"):
+            with pytest.raises(
+                ValueError, match="Using sensitive profiles is restricted"
+            ):
                 validate_aws_command(profile_command)
 
             # Verify check_regex_rules was called
@@ -129,7 +134,9 @@ def test_validate_aws_command_regex():
             # Have the mock return error for the policy command
             mock_check.return_value = "Creating public bucket policies is restricted"
 
-            with pytest.raises(ValueError, match="Creating public bucket policies is restricted"):
+            with pytest.raises(
+                ValueError, match="Creating public bucket policies is restricted"
+            ):
                 validate_aws_command(policy_command)
 
             # Verify check_regex_rules was called
@@ -148,35 +155,32 @@ def test_validate_aws_command_permissive():
 @patch("aws_mcp_server.security.SECURITY_MODE", "strict")
 def test_validate_pipe_command():
     """Test validation of piped commands."""
-    # Mock the validate_aws_command and validate_unix_command functions
     with patch("aws_mcp_server.security.validate_aws_command") as mock_aws_validate:
-        with patch("aws_mcp_server.security.validate_unix_command") as mock_unix_validate:
-            # Set up return values
-            mock_unix_validate.return_value = True
+        with patch(
+            "aws_mcp_server.security.ALLOWED_UNIX_COMMANDS", {"grep", "head", "tail"}
+        ):
+            with patch(
+                "aws_mcp_server.security.check_dangerous_patterns", return_value=None
+            ):
+                # Test valid piped command
+                validate_pipe_command("aws s3 ls | grep bucket")
+                mock_aws_validate.assert_called_once_with("aws s3 ls")
 
-            # Test valid piped command
-            validate_pipe_command("aws s3 ls | grep bucket")
-            mock_aws_validate.assert_called_once_with("aws s3 ls")
+                mock_aws_validate.reset_mock()
 
-            # Reset mocks
-            mock_aws_validate.reset_mock()
-            mock_unix_validate.reset_mock()
+                # Test command with unrecognized Unix command
+                with pytest.raises(ValueError, match="not allowed"):
+                    validate_pipe_command("aws s3 ls | unknown_command")
 
-            # Test command with unrecognized Unix command
-            mock_unix_validate.return_value = False
-            with pytest.raises(ValueError, match="not allowed"):
-                validate_pipe_command("aws s3 ls | unknown_command")
+    # Empty command should raise
+    with pytest.raises(ValueError, match="Empty command"):
+        validate_pipe_command("")
 
-            # Empty command should raise
-            with pytest.raises(ValueError, match="Empty command"):
-                validate_pipe_command("")
-
-            # Empty second command test
-            # Configure split_pipe_command to return a list with an empty second command
-            with patch("aws_mcp_server.security.split_pipe_command") as mock_split_pipe:
-                mock_split_pipe.return_value = ["aws s3 ls", ""]
-                with pytest.raises(ValueError, match="Empty command at position"):
-                    validate_pipe_command("aws s3 ls | ")
+    # Empty second command test
+    with patch("aws_mcp_server.security.split_pipe_command") as mock_split_pipe:
+        mock_split_pipe.return_value = ["aws s3 ls", ""]
+        with pytest.raises(ValueError, match="Empty command at position"):
+            validate_pipe_command("aws s3 ls | ")
 
 
 @patch("aws_mcp_server.security.SECURITY_MODE", "strict")
@@ -214,7 +218,15 @@ def test_load_security_config_custom():
     test_config = {
         "dangerous_commands": {"test_service": ["aws test_service dangerous_command"]},
         "safe_patterns": {"test_service": ["aws test_service safe_pattern"]},
-        "regex_rules": {"test_service": [{"pattern": "test_pattern", "description": "Test description", "error_message": "Test error message"}]},
+        "regex_rules": {
+            "test_service": [
+                {
+                    "pattern": "test_pattern",
+                    "description": "Test description",
+                    "error_message": "Test error message",
+                }
+            ]
+        },
     }
 
     # Mock the open function to return our test config
@@ -236,7 +248,9 @@ def test_load_security_config_error():
         with patch("aws_mcp_server.security.SECURITY_CONFIG_PATH", "/fake/path.yaml"):
             with patch("pathlib.Path.exists", return_value=True):
                 with patch("aws_mcp_server.security.logger.error") as mock_error:
-                    with patch("aws_mcp_server.security.logger.warning") as mock_warning:
+                    with patch(
+                        "aws_mcp_server.security.logger.warning"
+                    ) as mock_warning:
                         config = load_security_config()
 
                         # Should log error and warning
@@ -250,7 +264,9 @@ def test_load_security_config_error():
 def test_reload_security_config():
     """Test reloading security configuration."""
     with patch("aws_mcp_server.security.load_security_config") as mock_load:
-        mock_load.return_value = SecurityConfig(dangerous_commands={"test": ["test"]}, safe_patterns={"test": ["test"]})
+        mock_load.return_value = SecurityConfig(
+            dangerous_commands={"test": ["test"]}, safe_patterns={"test": ["test"]}
+        )
 
         reload_security_config()
 
@@ -265,7 +281,11 @@ def test_specific_dangerous_commands():
     # Configure the SECURITY_CONFIG with some dangerous commands
     with patch("aws_mcp_server.security.SECURITY_CONFIG") as mock_config:
         mock_config.dangerous_commands = {
-            "iam": ["aws iam create-user", "aws iam create-access-key", "aws iam attach-user-policy"],
+            "iam": [
+                "aws iam create-user",
+                "aws iam create-access-key",
+                "aws iam attach-user-policy",
+            ],
             "ec2": ["aws ec2 terminate-instances"],
             "s3": ["aws s3 rb"],
             "rds": ["aws rds delete-db-instance"],
@@ -286,7 +306,9 @@ def test_specific_dangerous_commands():
             validate_aws_command("aws iam create-access-key --user-name test-user")
 
         with pytest.raises(ValueError, match="restricted for security reasons"):
-            validate_aws_command("aws iam attach-user-policy --user-name test-user --policy-arn arn:aws:iam::aws:policy/AdministratorAccess")
+            validate_aws_command(
+                "aws iam attach-user-policy --user-name test-user --policy-arn arn:aws:iam::aws:policy/AdministratorAccess"
+            )
 
         # EC2 dangerous commands
         with pytest.raises(ValueError, match="restricted for security reasons"):
@@ -298,7 +320,9 @@ def test_specific_dangerous_commands():
 
         # RDS dangerous commands
         with pytest.raises(ValueError, match="restricted for security reasons"):
-            validate_aws_command("aws rds delete-db-instance --db-instance-identifier my-db --skip-final-snapshot")
+            validate_aws_command(
+                "aws rds delete-db-instance --db-instance-identifier my-db --skip-final-snapshot"
+            )
 
 
 # Tests for safe patterns overriding dangerous commands
@@ -342,7 +366,9 @@ def test_complex_regex_patterns():
 
         with patch("aws_mcp_server.security.check_regex_rules") as mock_check:
             # Set up mock to return error for the dangerous command
-            mock_check.side_effect = lambda cmd, svc=None: "Security group error" if "--port 22" in cmd else None
+            mock_check.side_effect = lambda cmd, svc=None: (
+                "Security group error" if "--port 22" in cmd else None
+            )
 
             # Test dangerous command raises error
             with pytest.raises(ValueError, match="Security group error"):
@@ -352,3 +378,76 @@ def test_complex_regex_patterns():
             mock_check.reset_mock()
             mock_check.return_value = None  # Explicit safe return
             validate_aws_command(safe_sg_command_80)  # Should not raise
+
+
+@patch("aws_mcp_server.security.SECURITY_MODE", "strict")
+def test_is_service_command_safe_general_pattern():
+    """Test that general safe patterns work across services."""
+    with patch("aws_mcp_server.security.SECURITY_CONFIG") as mock_config:
+        mock_config.safe_patterns = {
+            "s3": ["aws s3 ls"],
+            "general": ["--help", "help"],
+        }
+        mock_config.dangerous_commands = {}
+
+        # General safe pattern should match
+        assert (
+            is_service_command_safe("aws ec2 describe-instances --help", "ec2") is True
+        )
+        assert is_service_command_safe("aws iam help", "iam") is True
+
+
+@patch("aws_mcp_server.security.SECURITY_MODE", "strict")
+def test_check_regex_rules_service_specific():
+    """Test service-specific regex rules."""
+    with patch("aws_mcp_server.security.SECURITY_CONFIG") as mock_config:
+        mock_config.regex_rules = {
+            "general": [],
+            "iam": [
+                ValidationRule(
+                    pattern=r"--user-name\s+(root|admin)",
+                    description="Prevent creating users with sensitive names",
+                    error_message="Creating users with sensitive names is restricted",
+                    regex=True,
+                )
+            ],
+        }
+
+        # Should match service-specific rule
+        error = check_regex_rules("aws iam create-user --user-name admin", "iam")
+        assert error is not None
+        assert "sensitive names" in error
+
+        # Should not match for different service
+        error = check_regex_rules("aws iam create-user --user-name admin", "ec2")
+        assert error is None
+
+
+@patch("aws_mcp_server.security.SECURITY_MODE", "permissive")
+def test_validate_pipe_command_permissive_mode():
+    """Test that pipe command validation is skipped in permissive mode."""
+    with patch("aws_mcp_server.security.logger.warning") as mock_warning:
+        # This would normally fail validation but should pass in permissive mode
+        validate_pipe_command("aws s3 ls | grep bucket")
+        mock_warning.assert_called_once()
+        assert "permissive" in mock_warning.call_args[0][0].lower()
+
+
+@patch("aws_mcp_server.security.SECURITY_MODE", "strict")
+def test_validate_pipe_command_dangerous_patterns():
+    """Test that dangerous patterns in Unix commands are blocked."""
+    with patch("aws_mcp_server.security.check_dangerous_patterns") as mock_check:
+        mock_check.return_value = "Dangerous option detected"
+
+        with pytest.raises(ValueError, match="Security violation"):
+            validate_pipe_command("aws s3 ls | grep -r /")
+
+
+@patch("aws_mcp_server.security.SECURITY_MODE", "permissive")
+def test_validate_command_permissive_mode():
+    """Test that command validation is skipped in permissive mode."""
+    with patch("aws_mcp_server.security.logger.warning") as mock_warning:
+        # This would normally fail validation but should pass in permissive mode
+        validate_command("aws iam create-user --user-name test")
+        mock_warning.assert_called_once()
+        assert "permissive" in mock_warning.call_args[0][0].lower()

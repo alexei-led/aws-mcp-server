@@ -20,7 +20,9 @@ from aws_mcp_server.config import DEFAULT_TIMEOUT, MAX_OUTPUT_SIZE
 @pytest.mark.asyncio
 async def test_execute_aws_command_success():
     """Test successful command execution."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a successful process
         process_mock = AsyncMock()
         process_mock.returncode = 0
@@ -31,13 +33,21 @@ async def test_execute_aws_command_success():
 
         assert result["status"] == "success"
         assert result["output"] == "Success output"
-        mock_subprocess.assert_called_once_with("aws", "s3", "ls", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        mock_subprocess.assert_called_once_with(
+            "aws",
+            "s3",
+            "ls",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
 
 @pytest.mark.asyncio
 async def test_execute_aws_command_ec2_with_region_added():
     """Test that region is automatically added to EC2 commands."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a successful process
         process_mock = AsyncMock()
         process_mock.returncode = 0
@@ -66,7 +76,9 @@ async def test_execute_aws_command_ec2_with_region_added():
 @pytest.mark.asyncio
 async def test_execute_aws_command_with_custom_timeout():
     """Test command execution with custom timeout."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         process_mock = AsyncMock()
         process_mock.returncode = 0
         process_mock.communicate.return_value = (b"Success output", b"")
@@ -87,7 +99,9 @@ async def test_execute_aws_command_with_custom_timeout():
 @pytest.mark.asyncio
 async def test_execute_aws_command_error():
     """Test command execution error."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a failed process
         process_mock = AsyncMock()
         process_mock.returncode = 1
@@ -108,7 +122,9 @@ async def test_execute_aws_command_error():
 @pytest.mark.asyncio
 async def test_execute_aws_command_auth_error():
     """Test command execution with authentication error."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a process that returns auth error
         process_mock = AsyncMock()
         process_mock.returncode = 1
@@ -126,7 +142,9 @@ async def test_execute_aws_command_auth_error():
 @pytest.mark.asyncio
 async def test_execute_aws_command_timeout():
     """Test command timeout."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a process that times out
         process_mock = AsyncMock()
         # Use a properly awaitable mock that raises TimeoutError
@@ -150,7 +168,9 @@ async def test_execute_aws_command_timeout():
 @pytest.mark.asyncio
 async def test_execute_aws_command_kill_failure():
     """Test failure to kill process after timeout."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a process that times out
         process_mock = AsyncMock()
         # Use a properly awaitable mock that raises TimeoutError
@@ -170,7 +190,9 @@ async def test_execute_aws_command_kill_failure():
 @pytest.mark.asyncio
 async def test_execute_aws_command_general_exception():
     """Test handling of general exceptions during command execution."""
-    with patch("asyncio.create_subprocess_exec", side_effect=Exception("Test exception")):
+    with patch(
+        "asyncio.create_subprocess_exec", side_effect=Exception("Test exception")
+    ):
         with pytest.raises(CommandExecutionError) as excinfo:
             await execute_aws_command("aws s3 ls")
 
@@ -181,7 +203,9 @@ async def test_execute_aws_command_general_exception():
 @pytest.mark.asyncio
 async def test_execute_aws_command_truncate_output():
     """Test truncation of large outputs."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         # Mock a successful process with large output
         process_mock = AsyncMock()
         process_mock.returncode = 0
@@ -194,7 +218,9 @@ async def test_execute_aws_command_truncate_output():
         result = await execute_aws_command("aws s3 ls")
 
         assert result["status"] == "success"
-        assert len(result["output"]) <= MAX_OUTPUT_SIZE + 100  # Allow for the truncation message
+        assert (
+            len(result["output"]) <= MAX_OUTPUT_SIZE + 100
+        )  # Allow for the truncation message
         assert "output truncated" in result["output"]
 
 
@@ -233,14 +259,18 @@ def test_is_auth_error(error_message, expected_result):
         (None, None, None, Exception("Test exception"), False),
     ],
 )
-async def test_check_aws_cli_installed(returncode, stdout, stderr, exception, expected_result):
+async def test_check_aws_cli_installed(
+    returncode, stdout, stderr, exception, expected_result
+):
     """Test check_aws_cli_installed function with various scenarios."""
     if exception:
         with patch("asyncio.create_subprocess_exec", side_effect=exception):
             result = await check_aws_cli_installed()
             assert result is expected_result
     else:
-        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+        with patch(
+            "asyncio.create_subprocess_exec", new_callable=AsyncMock
+        ) as mock_subprocess:
             process_mock = AsyncMock()
             process_mock.returncode = returncode
             process_mock.communicate.return_value = (stdout, stderr)
@@ -249,8 +279,15 @@ async def test_check_aws_cli_installed(returncode, stdout, stderr, exception, ex
             result = await check_aws_cli_installed()
             assert result is expected_result
 
-            if returncode == 0:  # Only verify call args for success case to avoid redundancy
-                mock_subprocess.assert_called_once_with("aws", "--version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            if (
+                returncode == 0
+            ):  # Only verify call args for success case to avoid redundancy
+                mock_subprocess.assert_called_once_with(
+                    "aws",
+                    "--version",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
 
 
 @pytest.mark.asyncio
@@ -258,20 +295,66 @@ async def test_check_aws_cli_installed(returncode, stdout, stderr, exception, ex
     "service,command,mock_type,mock_value,expected_text,expected_call",
     [
         # Successful help retrieval with service and command
-        ("s3", "ls", "return_value", {"status": "success", "output": "Help text"}, "Help text", "aws s3 ls help"),
+        (
+            "s3",
+            "ls",
+            "return_value",
+            {"status": "success", "output": "Help text"},
+            "Help text",
+            "aws s3 ls help",
+        ),
         # Successful help retrieval with service only
-        ("s3", None, "return_value", {"status": "success", "output": "Help text for service"}, "Help text for service", "aws s3 help"),
+        (
+            "s3",
+            None,
+            "return_value",
+            {"status": "success", "output": "Help text for service"},
+            "Help text for service",
+            "aws s3 help",
+        ),
         # Error scenarios
-        ("s3", "ls", "side_effect", CommandValidationError("Test validation error"), "Command validation error: Test validation error", None),
-        ("s3", "ls", "side_effect", CommandExecutionError("Test execution error"), "Error retrieving help: Test execution error", None),
-        ("s3", "ls", "side_effect", Exception("Test exception"), "Error retrieving help: Test exception", None),
+        (
+            "s3",
+            "ls",
+            "side_effect",
+            CommandValidationError("Test validation error"),
+            "Command validation error: Test validation error",
+            None,
+        ),
+        (
+            "s3",
+            "ls",
+            "side_effect",
+            CommandExecutionError("Test execution error"),
+            "Error retrieving help: Test execution error",
+            None,
+        ),
+        (
+            "s3",
+            "ls",
+            "side_effect",
+            Exception("Test exception"),
+            "Error retrieving help: Test exception",
+            None,
+        ),
         # Error result from AWS command
-        ("s3", "ls", "return_value", {"status": "error", "output": "Command failed"}, "Error: Command failed", "aws s3 ls help"),
+        (
+            "s3",
+            "ls",
+            "return_value",
+            {"status": "error", "output": "Command failed"},
+            "Error: Command failed",
+            "aws s3 ls help",
+        ),
     ],
 )
-async def test_get_command_help(service, command, mock_type, mock_value, expected_text, expected_call):
+async def test_get_command_help(
+    service, command, mock_type, mock_value, expected_text, expected_call
+):
     """Test get_command_help function with various scenarios."""
-    with patch("aws_mcp_server.cli_executor.execute_aws_command", new_callable=AsyncMock) as mock_execute:
+    with patch(
+        "aws_mcp_server.cli_executor.execute_aws_command", new_callable=AsyncMock
+    ) as mock_execute:
         # Configure the mock based on the test case
         if mock_type == "return_value":
             mock_execute.return_value = mock_value
@@ -294,8 +377,13 @@ async def test_execute_aws_command_with_pipe():
     """Test execute_aws_command with a piped command."""
     # Test that execute_aws_command calls execute_pipe_command for piped commands
     with patch("aws_mcp_server.cli_executor.is_pipe_command", return_value=True):
-        with patch("aws_mcp_server.cli_executor.execute_pipe_command", new_callable=AsyncMock) as mock_pipe_exec:
-            mock_pipe_exec.return_value = {"status": "success", "output": "Piped result"}
+        with patch(
+            "aws_mcp_server.cli_executor.execute_pipe_command", new_callable=AsyncMock
+        ) as mock_pipe_exec:
+            mock_pipe_exec.return_value = {
+                "status": "success",
+                "output": "Piped result",
+            }
 
             result = await execute_aws_command("aws s3 ls | grep bucket")
 
@@ -308,8 +396,13 @@ async def test_execute_aws_command_with_pipe():
 async def test_execute_pipe_command_success():
     """Test successful execution of a pipe command."""
     with patch("aws_mcp_server.cli_executor.validate_pipe_command") as mock_validate:
-        with patch("aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock) as mock_pipe_exec:
-            mock_pipe_exec.return_value = {"status": "success", "output": "Filtered results"}
+        with patch(
+            "aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock
+        ) as mock_pipe_exec:
+            mock_pipe_exec.return_value = {
+                "status": "success",
+                "output": "Filtered results",
+            }
 
             result = await execute_pipe_command("aws s3 ls | grep bucket")
 
@@ -323,18 +416,28 @@ async def test_execute_pipe_command_success():
 async def test_execute_pipe_command_ec2_with_region_added():
     """Test that region is automatically added to EC2 commands in a pipe."""
     with patch("aws_mcp_server.cli_executor.validate_pipe_command"):
-        with patch("aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock) as mock_pipe_exec:
-            mock_pipe_exec.return_value = {"status": "success", "output": "Filtered EC2 instances"}
+        with patch(
+            "aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock
+        ) as mock_pipe_exec:
+            mock_pipe_exec.return_value = {
+                "status": "success",
+                "output": "Filtered EC2 instances",
+            }
 
             # Mock split_pipe_command to simulate pipe command splitting
             with patch("aws_mcp_server.cli_executor.split_pipe_command") as mock_split:
-                mock_split.return_value = ["aws ec2 describe-instances", "grep instance-id"]
+                mock_split.return_value = [
+                    "aws ec2 describe-instances",
+                    "grep instance-id",
+                ]
 
                 # Import here to ensure the test uses the actual value
                 from aws_mcp_server.config import AWS_REGION
 
                 # Execute a piped EC2 command without region
-                result = await execute_pipe_command("aws ec2 describe-instances | grep instance-id")
+                result = await execute_pipe_command(
+                    "aws ec2 describe-instances | grep instance-id"
+                )
 
                 assert result["status"] == "success"
                 assert result["output"] == "Filtered EC2 instances"
@@ -347,7 +450,10 @@ async def test_execute_pipe_command_ec2_with_region_added():
 @pytest.mark.asyncio
 async def test_execute_pipe_command_validation_error():
     """Test execute_pipe_command with validation error."""
-    with patch("aws_mcp_server.cli_executor.validate_pipe_command", side_effect=CommandValidationError("Invalid pipe command")):
+    with patch(
+        "aws_mcp_server.cli_executor.validate_pipe_command",
+        side_effect=CommandValidationError("Invalid pipe command"),
+    ):
         with pytest.raises(CommandValidationError) as excinfo:
             await execute_pipe_command("invalid | pipe | command")
 
@@ -358,7 +464,10 @@ async def test_execute_pipe_command_validation_error():
 async def test_execute_pipe_command_execution_error():
     """Test execute_pipe_command with execution error."""
     with patch("aws_mcp_server.cli_executor.validate_pipe_command"):
-        with patch("aws_mcp_server.cli_executor.execute_piped_command", side_effect=Exception("Execution error")):
+        with patch(
+            "aws_mcp_server.cli_executor.execute_piped_command",
+            side_effect=Exception("Execution error"),
+        ):
             with pytest.raises(CommandExecutionError) as excinfo:
                 await execute_pipe_command("aws s3 ls | grep bucket")
 
@@ -373,14 +482,21 @@ async def test_execute_pipe_command_execution_error():
 async def test_execute_pipe_command_timeout():
     """Test timeout handling in piped commands."""
     with patch("aws_mcp_server.cli_executor.validate_pipe_command"):
-        with patch("aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock) as mock_exec:
+        with patch(
+            "aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock
+        ) as mock_exec:
             # Simulate timeout in the executed command
-            mock_exec.return_value = {"status": "error", "output": f"Command timed out after {DEFAULT_TIMEOUT} seconds"}
+            mock_exec.return_value = {
+                "status": "error",
+                "output": f"Command timed out after {DEFAULT_TIMEOUT} seconds",
+            }
 
             result = await execute_pipe_command("aws s3 ls | grep bucket")
 
             assert result["status"] == "error"
-            assert f"Command timed out after {DEFAULT_TIMEOUT} seconds" in result["output"]
+            assert (
+                f"Command timed out after {DEFAULT_TIMEOUT} seconds" in result["output"]
+            )
             mock_exec.assert_called_once()
 
 
@@ -388,11 +504,15 @@ async def test_execute_pipe_command_timeout():
 async def test_execute_pipe_command_with_custom_timeout():
     """Test piped command execution with custom timeout."""
     with patch("aws_mcp_server.cli_executor.validate_pipe_command"):
-        with patch("aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock) as mock_exec:
+        with patch(
+            "aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock
+        ) as mock_exec:
             mock_exec.return_value = {"status": "success", "output": "Piped output"}
 
             custom_timeout = 120
-            await execute_pipe_command("aws s3 ls | grep bucket", timeout=custom_timeout)
+            await execute_pipe_command(
+                "aws s3 ls | grep bucket", timeout=custom_timeout
+            )
 
             # Verify the custom timeout was passed to the execute_piped_command
             mock_exec.assert_called_once_with("aws s3 ls | grep bucket", custom_timeout)
@@ -402,7 +522,9 @@ async def test_execute_pipe_command_with_custom_timeout():
 async def test_execute_pipe_command_large_output():
     """Test handling of large output in piped commands."""
     with patch("aws_mcp_server.cli_executor.validate_pipe_command"):
-        with patch("aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock) as mock_exec:
+        with patch(
+            "aws_mcp_server.cli_executor.execute_piped_command", new_callable=AsyncMock
+        ) as mock_exec:
             # Generate large output that would be truncated
             large_output = "x" * (MAX_OUTPUT_SIZE + 1000)
             mock_exec.return_value = {"status": "success", "output": large_output}
@@ -410,22 +532,38 @@ async def test_execute_pipe_command_large_output():
             result = await execute_pipe_command("aws s3 ls | grep bucket")
 
             assert result["status"] == "success"
-            assert len(result["output"]) == len(large_output)  # Length should be preserved here as truncation happens in tools module
+            assert len(result["output"]) == len(
+                large_output
+            )  # Length should be preserved here as truncation happens in tools module
 
 
 @pytest.mark.parametrize(
     "exit_code,stderr,expected_status,expected_msg",
     [
         (0, b"", "success", ""),  # Success case
-        (1, b"Error: bucket not found", "error", "Error: bucket not found"),  # Standard error
+        (
+            1,
+            b"Error: bucket not found",
+            "error",
+            "Error: bucket not found",
+        ),  # Standard error
         (1, b"AccessDenied", "error", "Authentication error"),  # Auth error
-        (0, b"Warning: deprecated feature", "success", ""),  # Warning on stderr but success exit code
+        (
+            0,
+            b"Warning: deprecated feature",
+            "success",
+            "",
+        ),  # Warning on stderr but success exit code
     ],
 )
 @pytest.mark.asyncio
-async def test_execute_aws_command_exit_codes(exit_code, stderr, expected_status, expected_msg):
+async def test_execute_aws_command_exit_codes(
+    exit_code, stderr, expected_status, expected_msg
+):
     """Test handling of different process exit codes and stderr output."""
-    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
+    with patch(
+        "asyncio.create_subprocess_exec", new_callable=AsyncMock
+    ) as mock_subprocess:
         process_mock = AsyncMock()
         process_mock.returncode = exit_code
         stdout = b"Command output" if exit_code == 0 else b""
@@ -439,3 +577,29 @@ async def test_execute_aws_command_exit_codes(exit_code, stderr, expected_status
             assert result["output"] == "Command output"
         else:
             assert expected_msg in result["output"]
+
+
+@pytest.mark.asyncio
+async def test_execute_aws_command_validation_value_error():
+    """Test that ValueError from validate_aws_command is converted to CommandValidationError."""
+    with patch(
+        "aws_mcp_server.cli_executor.validate_aws_command",
+        side_effect=ValueError("Invalid AWS command"),
+    ):
+        with pytest.raises(CommandValidationError) as excinfo:
+            await execute_aws_command("invalid command")
+
+        assert "Invalid AWS command" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_execute_pipe_command_value_error():
+    """Test that ValueError from validate_pipe_command is converted to CommandValidationError."""
+    with patch(
+        "aws_mcp_server.cli_executor.validate_pipe_command",
+        side_effect=ValueError("Invalid pipe command"),
+    ):
+        with pytest.raises(CommandValidationError) as excinfo:
+            await execute_pipe_command("aws s3 ls | unknown_cmd")
+
+        assert "Invalid pipe command" in str(excinfo.value)
