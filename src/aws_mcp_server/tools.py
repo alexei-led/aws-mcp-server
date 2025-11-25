@@ -8,8 +8,9 @@ This module provides utilities for validating and executing commands, including:
 
 import asyncio
 import logging
+import re
 import shlex
-from typing import List, TypedDict
+from typing import TypedDict
 
 from aws_mcp_server.config import DEFAULT_TIMEOUT, MAX_OUTPUT_SIZE
 
@@ -118,12 +119,7 @@ DANGEROUS_UNIX_PATTERNS: dict[str, list[str]] = {
     "xargs": [
         "",  # Block all xargs usage - it's designed to execute commands
     ],
-    # sed can execute commands in some versions via the 'e' command
-    "sed": [
-        "/e",  # Execute pattern space as shell command (GNU sed)
-        " e",  # Execute command flag
-        ";e",  # Execute after other command
-    ],
+    # NOTE: sed is handled by _check_sed_execute_flag() for intelligent detection
     # curl/wget data exfiltration via POST/upload
     "curl": [
         "-X POST",  # POST requests could exfiltrate data
@@ -147,22 +143,49 @@ DANGEROUS_UNIX_PATTERNS: dict[str, list[str]] = {
         "-rf ~",  # Recursive force delete home
         "--no-preserve-root",  # Allow deleting root
     ],
-    # chmod/chown on sensitive paths
-    "chmod": [
-        " /",  # Modifying root or system files
-        " /etc",
-        " /usr",
-        " /bin",
-        " /sbin",
-    ],
-    "chown": [
-        " /",  # Modifying root or system files
-        " /etc",
-        " /usr",
-        " /bin",
-        " /sbin",
-    ],
 }
+
+# System directories that should not be modified by chmod/chown
+# NOTE: We only block specific system directories, not all absolute paths
+# This allows legitimate uses like: chmod 400 /tmp/key.pem
+_SYSTEM_DIRS = ["etc", "usr", "bin", "sbin", "lib", "lib64", "boot", "sys", "proc"]
+_SYSTEM_PATH_PATTERNS = [f" /{d}/" for d in _SYSTEM_DIRS] + [
+    f" /{d} " for d in _SYSTEM_DIRS
+]
+
+# Add chmod/chown patterns
+DANGEROUS_UNIX_PATTERNS["chmod"] = _SYSTEM_PATH_PATTERNS
+DANGEROUS_UNIX_PATTERNS["chown"] = _SYSTEM_PATH_PATTERNS
+
+
+def _check_sed_execute_flag(command: str) -> str | None:
+    """Check if a sed command contains the dangerous 'e' execute flag.
+
+    The sed 'e' flag executes the pattern space as a shell command.
+    We detect 'e' in the flags section (after the last delimiter) by looking
+    for /[flags]e[flags] where flags are common sed modifiers (g,i,p,w,m,I,M).
+
+    Args:
+        command: The full sed command string
+
+    Returns:
+        Error message if dangerous execute flag found, None otherwise
+    """
+    # Pattern: / followed by optional flags, then 'e', then optional flags,
+    # NOT followed by alphanumeric (to exclude patterns like /error/)
+    # Common sed flags: g (global), i/I (case-insensitive), p (print),
+    # w (write), m/M (multiline), e (execute)
+    # This catches: /e, /ge, /eg, /gei, /peg, etc.
+    # But NOT: /error/, /enable/ (e followed by alphanumeric)
+    if re.search(r"/[gipwmIM]*e[gipwmIM]*(?![a-zA-Z0-9])", command):
+        return "Dangerous sed 'e' (execute) flag detected - executes shell commands"
+
+    # Also check for standalone 'e' command after semicolon: p;e, d;e
+    # Pattern: ;e followed by non-alphanumeric or end of string
+    if re.search(r";e(?![a-zA-Z0-9])", command):
+        return "Dangerous sed 'e' (execute) command detected - executes shell commands"
+
+    return None
 
 
 def check_dangerous_patterns(command: str, cmd_name: str) -> str | None:
@@ -175,6 +198,10 @@ def check_dangerous_patterns(command: str, cmd_name: str) -> str | None:
     Returns:
         Error message if dangerous pattern found, None otherwise
     """
+    # Special handling for sed - use intelligent regex detection
+    if cmd_name == "sed":
+        return _check_sed_execute_flag(command)
+
     if cmd_name not in DANGEROUS_UNIX_PATTERNS:
         return None
 
@@ -237,7 +264,7 @@ def is_pipe_command(command: str) -> bool:
     in_double_quote = False
     escaped = False
 
-    for _, char in enumerate(command):
+    for char in command:
         # Handle escape sequences
         if char == "\\" and not escaped:
             escaped = True
@@ -256,7 +283,7 @@ def is_pipe_command(command: str) -> bool:
     return False
 
 
-def split_pipe_command(pipe_command: str) -> List[str]:
+def split_pipe_command(pipe_command: str) -> list[str]:
     """Split a piped command into individual commands.
 
     Args:
@@ -271,7 +298,7 @@ def split_pipe_command(pipe_command: str) -> List[str]:
     in_double_quote = False
     escaped = False
 
-    for _, char in enumerate(pipe_command):
+    for char in pipe_command:
         # Handle escape sequences
         if char == "\\" and not escaped:
             escaped = True
@@ -301,7 +328,9 @@ def split_pipe_command(pipe_command: str) -> List[str]:
     return commands
 
 
-async def execute_piped_command(pipe_command: str, timeout: int | None = None) -> CommandResult:
+async def execute_piped_command(
+    pipe_command: str, timeout: int | None = None
+) -> CommandResult:
     """Execute a command that contains pipes.
 
     Args:
@@ -329,7 +358,9 @@ async def execute_piped_command(pipe_command: str, timeout: int | None = None) -
 
         # Execute the first command
         first_cmd = command_parts_list[0]
-        first_process = await asyncio.create_subprocess_exec(*first_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        first_process = await asyncio.create_subprocess_exec(
+            *first_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
 
         current_process = first_process
         current_stdout = None
@@ -339,47 +370,69 @@ async def execute_piped_command(pipe_command: str, timeout: int | None = None) -
         for cmd_parts in command_parts_list[1:]:
             try:
                 # Wait for the previous command to complete with timeout
-                current_stdout, current_stderr = await asyncio.wait_for(current_process.communicate(), timeout)
+                current_stdout, current_stderr = await asyncio.wait_for(
+                    current_process.communicate(), timeout
+                )
 
                 if current_process.returncode != 0:
                     # If previous command failed, stop the pipe execution
                     stderr_str = current_stderr.decode("utf-8", errors="replace")
-                    logger.warning(f"Piped command failed with return code {current_process.returncode}: {pipe_command}")
+                    logger.warning(
+                        f"Piped command failed with return code {current_process.returncode}: {pipe_command}"
+                    )
                     logger.debug(f"Command error output: {stderr_str}")
-                    return CommandResult(status="error", output=stderr_str or "Command failed with no error output")
+                    return CommandResult(
+                        status="error",
+                        output=stderr_str or "Command failed with no error output",
+                    )
 
                 # Create the next process with the previous output as input
                 next_process = await asyncio.create_subprocess_exec(
-                    *cmd_parts, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    *cmd_parts,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
 
                 # Pass the output of the previous command to the input of the next command
-                stdout, stderr = await asyncio.wait_for(next_process.communicate(input=current_stdout), timeout)
+                stdout, stderr = await asyncio.wait_for(
+                    next_process.communicate(input=current_stdout), timeout
+                )
 
                 current_process = next_process
                 current_stdout = stdout
                 current_stderr = stderr
 
             except asyncio.TimeoutError:
-                logger.warning(f"Piped command timed out after {timeout} seconds: {pipe_command}")
+                logger.warning(
+                    f"Piped command timed out after {timeout} seconds: {pipe_command}"
+                )
                 try:
                     # process.kill() is synchronous, not a coroutine
                     current_process.kill()
                 except Exception as e:
                     logger.error(f"Error killing process: {e}")
-                return CommandResult(status="error", output=f"Command timed out after {timeout} seconds")
+                return CommandResult(
+                    status="error", output=f"Command timed out after {timeout} seconds"
+                )
 
         # Wait for the final command to complete if it hasn't already
         if current_stdout is None:
             try:
-                current_stdout, current_stderr = await asyncio.wait_for(current_process.communicate(), timeout)
+                current_stdout, current_stderr = await asyncio.wait_for(
+                    current_process.communicate(), timeout
+                )
             except asyncio.TimeoutError:
-                logger.warning(f"Piped command timed out after {timeout} seconds: {pipe_command}")
+                logger.warning(
+                    f"Piped command timed out after {timeout} seconds: {pipe_command}"
+                )
                 try:
                     current_process.kill()
                 except Exception as e:
                     logger.error(f"Error killing process: {e}")
-                return CommandResult(status="error", output=f"Command timed out after {timeout} seconds")
+                return CommandResult(
+                    status="error", output=f"Command timed out after {timeout} seconds"
+                )
 
         # Process output
         stdout_str = current_stdout.decode("utf-8", errors="replace")
@@ -387,15 +440,24 @@ async def execute_piped_command(pipe_command: str, timeout: int | None = None) -
 
         # Truncate output if necessary
         if len(stdout_str) > MAX_OUTPUT_SIZE:
-            logger.info(f"Output truncated from {len(stdout_str)} to {MAX_OUTPUT_SIZE} characters")
+            logger.info(
+                f"Output truncated from {len(stdout_str)} to {MAX_OUTPUT_SIZE} characters"
+            )
             stdout_str = stdout_str[:MAX_OUTPUT_SIZE] + "\n... (output truncated)"
 
         if current_process.returncode != 0:
-            logger.warning(f"Piped command failed with return code {current_process.returncode}: {pipe_command}")
+            logger.warning(
+                f"Piped command failed with return code {current_process.returncode}: {pipe_command}"
+            )
             logger.debug(f"Command error output: {stderr_str}")
-            return CommandResult(status="error", output=stderr_str or "Command failed with no error output")
+            return CommandResult(
+                status="error",
+                output=stderr_str or "Command failed with no error output",
+            )
 
         return CommandResult(status="success", output=stdout_str)
     except Exception as e:
         logger.error(f"Failed to execute piped command: {str(e)}")
-        return CommandResult(status="error", output=f"Failed to execute command: {str(e)}")
+        return CommandResult(
+            status="error", output=f"Failed to execute command: {str(e)}"
+        )
