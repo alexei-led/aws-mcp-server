@@ -11,6 +11,9 @@ Environment variables:
 - AWS_DEFAULT_REGION: Alternative to AWS_REGION (used if AWS_REGION not set)
 - AWS_MCP_SECURITY_MODE: Security mode for command validation (strict or permissive, default: strict)
 - AWS_MCP_SECURITY_CONFIG: Path to custom security configuration file
+- AWS_MCP_SANDBOX: Sandbox mode ("auto", "disabled", "required", default: "auto")
+- AWS_MCP_SANDBOX_CREDENTIALS: How to pass AWS credentials to sandbox
+  ("env", "aws_config", "both", default: "both")
 """
 
 import os
@@ -30,6 +33,16 @@ AWS_REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "
 # Security settings
 SECURITY_MODE = os.environ.get("AWS_MCP_SECURITY_MODE", "strict")
 SECURITY_CONFIG_PATH = os.environ.get("AWS_MCP_SECURITY_CONFIG", "")
+
+# Sandbox settings
+# "auto" - use sandbox if available, fall back to no sandbox
+# "disabled" - never use sandbox
+# "required" - fail if sandbox is not available
+SANDBOX_MODE = os.environ.get("AWS_MCP_SANDBOX", "auto").lower()
+# "env" - pass AWS credentials via environment variables only
+# "aws_config" - allow read access to ~/.aws directory only
+# "both" - both environment variables and ~/.aws access (default)
+SANDBOX_CREDENTIAL_MODE = os.environ.get("AWS_MCP_SANDBOX_CREDENTIALS", "both").lower()
 
 # Instructions displayed to client during initialization
 INSTRUCTIONS = """
