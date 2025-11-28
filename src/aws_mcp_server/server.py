@@ -27,7 +27,11 @@ from aws_mcp_server.prompts import register_prompts
 from aws_mcp_server.resources import register_resources
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", handlers=[logging.StreamHandler(sys.stderr)])
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)],
+)
 logger = logging.getLogger("aws-mcp-server")
 
 
@@ -61,17 +65,26 @@ register_resources(mcp)
 
 @mcp.tool()
 async def aws_cli_help(
-    service: str = Field(description="AWS service (e.g., s3, ec2)"),
-    command: str | None = Field(description="Command within the service", default=None),
+    service: str = Field(description="AWS service name (e.g., 's3', 'ec2', 'lambda', 'iam')"),
+    command: str | None = Field(
+        description="Specific command to get help for (e.g., 'cp' for s3, 'describe-instances' for ec2). Omit to get service overview.",
+        default=None,
+    ),
     ctx: Context | None = None,
 ) -> CommandHelpResult:
-    """Get AWS CLI command documentation.
+    """Get AWS CLI documentation for any service or command.
 
-    Retrieves the help documentation for a specified AWS service or command
-    by executing the 'aws <service> [command] help' command.
+    Use this tool BEFORE executing commands to learn:
+    - Available commands for a service (omit 'command' parameter)
+    - Required and optional parameters for a specific command
+    - Usage examples and output format
 
-    Returns:
-        CommandHelpResult containing the help text
+    This is the AWS CLI's built-in help system - comprehensive and always up-to-date.
+
+    Examples:
+    - aws_cli_help(service="s3") -> lists all s3 commands
+    - aws_cli_help(service="s3", command="cp") -> shows s3 cp usage, parameters, examples
+    - aws_cli_help(service="ec2", command="describe-instances") -> shows filtering options
     """
     logger.info(f"Getting documentation for service: {service}, command: {command or 'None'}")
 
@@ -89,33 +102,31 @@ async def aws_cli_help(
 
 @mcp.tool()
 async def aws_cli_pipeline(
-    command: str = Field(description="Complete AWS CLI command to execute (can include pipes with Unix commands)"),
-    timeout: int | None = Field(description="Timeout in seconds (defaults to AWS_MCP_TIMEOUT)", default=None),
+    command: str = Field(description="Full AWS CLI command starting with 'aws'. Can include Unix pipes (|) to filter output with jq, grep, sort, etc."),
+    timeout: int | None = Field(
+        description="Optional timeout in seconds. Default: 300s. Increase for long operations.",
+        default=None,
+    ),
     ctx: Context | None = None,
 ) -> CommandResult:
-    """Execute an AWS CLI command, optionally with Unix command pipes.
+    """Execute any AWS CLI command with optional Unix pipe processing.
 
-    Validates, executes, and processes the results of an AWS CLI command,
-    handling errors and formatting the output for better readability.
+    TIPS FOR EFFECTIVE USE:
+    - Use --query for server-side filtering (faster, less data transfer)
+    - Use --output text|json|table to control format
+    - Pipe to jq for complex JSON transformations
+    - Pipe to grep/sort/head for simple filtering
 
-    The command can include Unix pipes (|) to filter or transform the output,
-    similar to a regular shell. The first command must be an AWS CLI command,
-    and subsequent piped commands must be basic Unix utilities.
+    COMMON PATTERNS:
+    - List resources: aws s3 ls, aws ec2 describe-instances
+    - Filter with --query: aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId'
+    - JSON processing: aws iam list-users | jq '.Users[].UserName'
+    - Count results: aws s3api list-objects --bucket X | jq '.Contents | length'
 
-    Supported Unix commands in pipes:
-    - File operations: ls, cat, cd, pwd, cp, mv, rm, mkdir, touch, chmod, chown
-    - Text processing: grep, sed, awk, cut, sort, uniq, wc, head, tail, tr, find
-    - System tools: ps, top, df, du, uname, whoami, date, which, echo
-    - Network tools: ping, ifconfig, netstat, curl, wget, dig, nslookup, ssh, scp
-    - Other utilities: man, less, tar, gzip, zip, xargs, jq, tee
+    ALLOWED PIPE COMMANDS:
+    jq, grep, sed, awk, sort, uniq, head, tail, wc, cut, tr, tee, xargs
 
-    Examples:
-    - aws s3api list-buckets --query 'Buckets[*].Name' --output text
-    - aws s3api list-buckets --query 'Buckets[*].Name' --output text | sort
-    - aws ec2 describe-instances | grep InstanceId | wc -l
-
-    Returns:
-        CommandResult containing output and status
+    Returns status ('success' or 'error') and command output.
     """
     logger.info(f"Executing command: {command}" + (f" with timeout: {timeout}" if timeout else ""))
 
