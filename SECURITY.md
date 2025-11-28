@@ -18,12 +18,6 @@ If you discover a security vulnerability in AWS MCP Server, please report it res
 - Potential impact
 - Suggested fix (if any)
 
-### Response Timeline
-
-- **Acknowledgment**: Within 48 hours
-- **Initial Assessment**: Within 7 days
-- **Fix Timeline**: Depends on severity (critical: ASAP, high: 30 days, medium: 90 days)
-
 ## Security Model
 
 For detailed information about the security architecture, command validation, and sandbox execution, see [Security Architecture](docs/SECURITY.md).
