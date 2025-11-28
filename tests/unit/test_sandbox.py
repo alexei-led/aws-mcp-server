@@ -1,7 +1,9 @@
 """Tests for the sandbox module."""
 
+import asyncio
 import os
 import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,6 +22,10 @@ from aws_mcp_server.sandbox import (
     sandbox_available,
 )
 
+# Platform detection helpers
+IS_LINUX = sys.platform.startswith("linux")
+IS_MACOS = sys.platform == "darwin"
+
 
 class TestSandboxConfig:
     """Tests for SandboxConfig."""
@@ -28,16 +34,11 @@ class TestSandboxConfig:
         """Test default configuration values."""
         config = SandboxConfig()
 
-        # Should have default read paths
         assert len(config.read_paths) > 0
-        # Should have default write paths
         assert len(config.write_paths) > 0
         assert "/tmp" in config.write_paths
-        # Should allow network by default
         assert config.allow_network is True
-        # Should pass AWS env by default
         assert config.pass_aws_env is True
-        # Should allow AWS config by default
         assert config.allow_aws_config is True
 
     def test_custom_config(self):
@@ -108,6 +109,14 @@ class TestNoOpBackend:
         assert result.returncode == 0
         assert b"test_value" in result.stdout
 
+    def test_execute_with_timeout(self):
+        """Test that timeout is respected."""
+        backend = NoOpBackend()
+        config = SandboxConfig()
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            backend.execute(["sleep", "10"], config, timeout=0.1)
+
 
 class TestLinuxLandlockBackend:
     """Tests for LinuxLandlockBackend."""
@@ -117,7 +126,6 @@ class TestLinuxLandlockBackend:
         backend = LinuxLandlockBackend()
 
         with patch("platform.system", return_value="Darwin"):
-            # Reset cached value
             backend._available = None
             assert backend.is_available() is False
 
@@ -127,7 +135,6 @@ class TestLinuxLandlockBackend:
 
         with patch("platform.system", return_value="Linux"):
             with patch("platform.release", return_value="4.19.0"):
-                # Reset cached value
                 backend._available = None
                 assert backend.is_available() is False
 
@@ -138,12 +145,18 @@ class TestLinuxLandlockBackend:
         with patch("platform.system", return_value="Linux"):
             with patch("platform.release", return_value="5.15.0"):
                 with patch.dict("sys.modules", {"landlock": None}):
-                    # Reset cached value
                     backend._available = None
-                    # This will try to import landlock and fail
                     result = backend.is_available()
-                    # May be True if landlock is installed, False otherwise
                     assert isinstance(result, bool)
+
+    def test_is_available_kernel_parse_error(self):
+        """Test availability check with unparseable kernel version."""
+        backend = LinuxLandlockBackend()
+
+        with patch("platform.system", return_value="Linux"):
+            with patch("platform.release", return_value="invalid-version"):
+                backend._available = None
+                assert backend.is_available() is False
 
     def test_execute_raises_when_not_available(self):
         """Test that execute raises when backend is not available."""
@@ -153,6 +166,19 @@ class TestLinuxLandlockBackend:
 
         with pytest.raises(SandboxError, match="Landlock is not available"):
             backend.execute(["echo", "hello"], config)
+
+    @pytest.mark.skipif(not IS_LINUX, reason="Landlock only available on Linux")
+    def test_execute_on_linux(self):
+        """Test actual Landlock execution on Linux."""
+        backend = LinuxLandlockBackend()
+        if not backend.is_available():
+            pytest.skip("Landlock not available on this Linux system")
+
+        config = SandboxConfig()
+        result = backend.execute(["echo", "sandboxed"], config)
+
+        assert result.returncode == 0
+        assert b"sandboxed" in result.stdout
 
 
 class TestLinuxBubblewrapBackend:
@@ -208,7 +234,6 @@ class TestLinuxBubblewrapBackend:
         assert "--new-session" in args
         assert "--die-with-parent" in args
         assert "--" in args
-        # Network should not be unshared when allow_network=True
         assert "--unshare-net" not in args
 
     def test_build_bwrap_args_no_network(self):
@@ -232,6 +257,19 @@ class TestLinuxBubblewrapBackend:
         with pytest.raises(SandboxError, match="Bubblewrap is not available"):
             backend.execute(["echo", "hello"], config)
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Bubblewrap only available on Linux")
+    def test_execute_on_linux(self):
+        """Test actual Bubblewrap execution on Linux."""
+        backend = LinuxBubblewrapBackend()
+        if not backend.is_available():
+            pytest.skip("Bubblewrap not available on this Linux system")
+
+        config = SandboxConfig()
+        result = backend.execute(["echo", "sandboxed"], config)
+
+        assert result.returncode == 0
+        assert b"sandboxed" in result.stdout
+
 
 class TestMacOSSeatbeltBackend:
     """Tests for MacOSSeatbeltBackend."""
@@ -252,6 +290,17 @@ class TestMacOSSeatbeltBackend:
             with patch("platform.mac_ver", return_value=("10.15.0", ("", "", ""), "")):
                 backend._available = None
                 assert backend.is_available() is False
+
+    def test_is_available_version_parse_error(self):
+        """Test availability check with unparseable macOS version."""
+        backend = MacOSSeatbeltBackend()
+
+        with patch("platform.system", return_value="Darwin"):
+            with patch("platform.mac_ver", return_value=("invalid", ("", "", ""), "")):
+                backend._available = None
+                # Should not crash, may return True or False based on other checks
+                result = backend.is_available()
+                assert isinstance(result, bool)
 
     def test_build_profile(self):
         """Test building Seatbelt profile."""
@@ -283,6 +332,16 @@ class TestMacOSSeatbeltBackend:
         assert "(allow network*)" not in profile
         assert "Network access disabled" in profile
 
+    def test_build_profile_no_aws_config(self):
+        """Test building profile with AWS config disabled."""
+        backend = MacOSSeatbeltBackend()
+
+        config = SandboxConfig(allow_aws_config=False)
+
+        profile = backend._build_profile(config)
+
+        assert "AWS config access disabled" in profile
+
     def test_execute_raises_when_not_available(self):
         """Test that execute raises when backend is not available."""
         backend = MacOSSeatbeltBackend()
@@ -291,6 +350,19 @@ class TestMacOSSeatbeltBackend:
 
         with pytest.raises(SandboxError, match="Seatbelt is not available"):
             backend.execute(["echo", "hello"], config)
+
+    @pytest.mark.skipif(not IS_MACOS, reason="Seatbelt only available on macOS")
+    def test_execute_on_macos(self):
+        """Test actual Seatbelt execution on macOS."""
+        backend = MacOSSeatbeltBackend()
+        if not backend.is_available():
+            pytest.skip("Seatbelt not available on this macOS version")
+
+        config = SandboxConfig()
+        result = backend.execute(["echo", "sandboxed"], config)
+
+        assert result.returncode == 0
+        assert b"sandboxed" in result.stdout
 
 
 class TestSandbox:
@@ -324,8 +396,39 @@ class TestSandbox:
         sandbox = Sandbox(sandbox_mode="required")
 
         with patch("platform.system", return_value="Windows"):
-            with pytest.raises(SandboxError, match="Sandbox required but not available"):
+            with pytest.raises(
+                SandboxError, match="Sandbox required but not available"
+            ):
                 sandbox._select_backend("required")
+
+    @pytest.mark.skipif(not IS_LINUX, reason="Linux backend selection test")
+    def test_select_backend_linux_auto(self):
+        """Test auto backend selection on Linux."""
+        sandbox = Sandbox(sandbox_mode="auto")
+
+        with patch("platform.system", return_value="Linux"):
+            backend = sandbox._select_backend("auto")
+            # Should return either Landlock, Bubblewrap, or NoOp depending on availability
+            assert isinstance(
+                backend, (LinuxLandlockBackend, LinuxBubblewrapBackend, NoOpBackend)
+            )
+
+    @pytest.mark.skipif(not IS_MACOS, reason="macOS backend selection test")
+    def test_select_backend_macos_auto(self):
+        """Test auto backend selection on macOS."""
+        sandbox = Sandbox(sandbox_mode="auto")
+
+        backend = sandbox._select_backend("auto")
+        # Should return either Seatbelt or NoOp depending on availability
+        assert isinstance(backend, (MacOSSeatbeltBackend, NoOpBackend))
+
+    def test_select_backend_unsupported_platform(self):
+        """Test backend selection on unsupported platform."""
+        sandbox = Sandbox(sandbox_mode="auto")
+
+        with patch("platform.system", return_value="FreeBSD"):
+            backend = sandbox._select_backend("auto")
+            assert isinstance(backend, NoOpBackend)
 
     def test_backend_property_caches(self):
         """Test that backend property caches the backend."""
@@ -339,17 +442,15 @@ class TestSandbox:
     def test_is_sandboxed_true(self):
         """Test is_sandboxed returns True when sandbox is active."""
         sandbox = Sandbox()
-        # Force a real backend (if available) or mock one
         sandbox._backend = LinuxLandlockBackend()
         sandbox._backend._available = True
 
-        # is_sandboxed checks if backend is NOT NoOpBackend
         assert sandbox.is_sandboxed() is True
 
     def test_is_sandboxed_false(self):
         """Test is_sandboxed returns False when using NoOp."""
         sandbox = Sandbox(sandbox_mode="disabled")
-        _ = sandbox.backend  # Initialize backend
+        _ = sandbox.backend
 
         assert sandbox.is_sandboxed() is False
 
@@ -414,7 +515,6 @@ class TestModuleFunctions:
         with patch("aws_mcp_server.config.SANDBOX_MODE", "disabled"):
             with patch("aws_mcp_server.config.SANDBOX_CREDENTIAL_MODE", "both"):
                 reset_sandbox()
-                # When disabled, sandbox is not available
                 available = sandbox_available()
                 assert available is False
 
@@ -434,10 +534,23 @@ class TestAsyncFunctions:
         with patch("aws_mcp_server.config.SANDBOX_MODE", "disabled"):
             with patch("aws_mcp_server.config.SANDBOX_CREDENTIAL_MODE", "both"):
                 reset_sandbox()
-                stdout, stderr, returncode = await execute_sandboxed_async(["echo", "hello"])
+                stdout, stderr, returncode = await execute_sandboxed_async(
+                    ["echo", "hello"]
+                )
 
                 assert returncode == 0
                 assert b"hello" in stdout
+
+    @pytest.mark.asyncio
+    async def test_execute_sandboxed_async_timeout(self):
+        """Test async sandbox execution with timeout."""
+        from aws_mcp_server.sandbox import execute_sandboxed_async
+
+        with patch("aws_mcp_server.config.SANDBOX_MODE", "disabled"):
+            with patch("aws_mcp_server.config.SANDBOX_CREDENTIAL_MODE", "both"):
+                reset_sandbox()
+                with pytest.raises(asyncio.TimeoutError):
+                    await execute_sandboxed_async(["sleep", "10"], timeout=0.1)
 
     @pytest.mark.asyncio
     async def test_execute_piped_sandboxed_async(self):
@@ -451,7 +564,9 @@ class TestAsyncFunctions:
                     ["echo", "hello world"],
                     ["grep", "hello"],
                 ]
-                stdout, stderr, returncode = await execute_piped_sandboxed_async(commands)
+                stdout, stderr, returncode = await execute_piped_sandboxed_async(
+                    commands
+                )
 
                 assert returncode == 0
                 assert b"hello" in stdout
@@ -478,10 +593,23 @@ class TestAsyncFunctions:
                     ["echo", "hello"],
                     ["grep", "nonexistent"],
                 ]
-                stdout, stderr, returncode = await execute_piped_sandboxed_async(commands)
+                stdout, stderr, returncode = await execute_piped_sandboxed_async(
+                    commands
+                )
 
-                # grep returns 1 when no match found
                 assert returncode == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_piped_sandboxed_async_timeout(self):
+        """Test async piped execution with timeout."""
+        from aws_mcp_server.sandbox import execute_piped_sandboxed_async
+
+        with patch("aws_mcp_server.config.SANDBOX_MODE", "disabled"):
+            with patch("aws_mcp_server.config.SANDBOX_CREDENTIAL_MODE", "both"):
+                reset_sandbox()
+                commands = [["sleep", "10"]]
+                with pytest.raises(asyncio.TimeoutError):
+                    await execute_piped_sandboxed_async(commands, timeout=0.1)
 
 
 class TestCredentialModes:
@@ -537,7 +665,6 @@ class TestCredentialModes:
         """Even manually added AWS vars should be filtered when disabled."""
         backend = NoOpBackend()
         config = SandboxConfig(pass_aws_env=False)
-        # Simulate manual addition after config init
         config.env_passthrough.append("AWS_SECRET_ACCESS_KEY")
         monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "supersecret")
         monkeypatch.setenv("PATH", "/usr/bin")
