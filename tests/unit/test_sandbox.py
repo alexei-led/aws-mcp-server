@@ -520,3 +520,51 @@ class TestCredentialModes:
 
                 assert sandbox.config.pass_aws_env is True
                 assert sandbox.config.allow_aws_config is True
+
+    def test_build_env_skips_aws_when_disabled(self, monkeypatch):
+        """Ensure AWS env vars are not passed when env creds are disabled."""
+        backend = NoOpBackend()
+        config = SandboxConfig(pass_aws_env=False)
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "secret")
+        monkeypatch.setenv("PATH", "/bin")
+
+        env = backend._build_env(config)
+
+        assert "AWS_ACCESS_KEY_ID" not in env
+        assert env["PATH"] == "/bin"
+
+    def test_build_env_skips_manual_aws_passthrough_when_disabled(self, monkeypatch):
+        """Even manually added AWS vars should be filtered when disabled."""
+        backend = NoOpBackend()
+        config = SandboxConfig(pass_aws_env=False)
+        # Simulate manual addition after config init
+        config.env_passthrough.append("AWS_SECRET_ACCESS_KEY")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "supersecret")
+        monkeypatch.setenv("PATH", "/usr/bin")
+
+        env = backend._build_env(config)
+
+        assert "AWS_SECRET_ACCESS_KEY" not in env
+        assert env["PATH"] == "/usr/bin"
+
+    def test_build_env_keeps_non_secret_aws_when_disabled(self, monkeypatch):
+        """Non-secret AWS settings should still pass through."""
+        backend = NoOpBackend()
+        config = SandboxConfig(pass_aws_env=False)
+        monkeypatch.setenv("AWS_REGION", "us-west-2")
+        monkeypatch.setenv("AWS_PROFILE", "custom")
+
+        env = backend._build_env(config)
+
+        assert env["AWS_REGION"] == "us-west-2"
+        assert env["AWS_PROFILE"] == "custom"
+
+    def test_build_env_includes_aws_when_enabled(self, monkeypatch):
+        """AWS env vars should be passed when env creds are enabled."""
+        backend = NoOpBackend()
+        config = SandboxConfig(pass_aws_env=True)
+        monkeypatch.setenv("AWS_SESSION_TOKEN", "token")
+
+        env = backend._build_env(config)
+
+        assert env["AWS_SESSION_TOKEN"] == "token"

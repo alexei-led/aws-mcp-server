@@ -28,6 +28,36 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# AWS-related environment variables that may be passed through
+AWS_ENV_VARS = [
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_REGION",
+    "AWS_DEFAULT_REGION",
+    "AWS_PROFILE",
+    "AWS_CONFIG_FILE",
+    "AWS_SHARED_CREDENTIALS_FILE",
+    "AWS_CA_BUNDLE",
+    "AWS_ROLE_ARN",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_ROLE_SESSION_NAME",
+    "AWS_STS_REGIONAL_ENDPOINTS",
+    "AWS_EC2_METADATA_DISABLED",
+    "AWS_METADATA_SERVICE_TIMEOUT",
+    "AWS_METADATA_SERVICE_NUM_ATTEMPTS",
+]
+
+# Subset containing only secret-bearing variables
+AWS_SECRET_ENV_VARS = {
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_ROLE_ARN",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_ROLE_SESSION_NAME",
+}
+
 
 @dataclass
 class SandboxConfig:
@@ -54,6 +84,9 @@ class SandboxConfig:
             self.write_paths = self._default_write_paths()
         if not self.env_passthrough:
             self.env_passthrough = self._default_env_passthrough()
+        # Remove secret AWS variables if env-based credentials are disabled
+        if not self.pass_aws_env:
+            self.env_passthrough = [var for var in self.env_passthrough if var not in AWS_SECRET_ENV_VARS]
 
     @staticmethod
     def _default_read_paths() -> list[str]:
@@ -108,22 +141,7 @@ class SandboxConfig:
             "TERM",
             "TZ",
             # AWS-specific
-            "AWS_ACCESS_KEY_ID",
-            "AWS_SECRET_ACCESS_KEY",
-            "AWS_SESSION_TOKEN",
-            "AWS_REGION",
-            "AWS_DEFAULT_REGION",
-            "AWS_PROFILE",
-            "AWS_CONFIG_FILE",
-            "AWS_SHARED_CREDENTIALS_FILE",
-            "AWS_CA_BUNDLE",
-            "AWS_ROLE_ARN",
-            "AWS_WEB_IDENTITY_TOKEN_FILE",
-            "AWS_ROLE_SESSION_NAME",
-            "AWS_STS_REGIONAL_ENDPOINTS",
-            "AWS_EC2_METADATA_DISABLED",
-            "AWS_METADATA_SERVICE_TIMEOUT",
-            "AWS_METADATA_SERVICE_NUM_ATTEMPTS",
+            *AWS_ENV_VARS,
         ]
 
 
@@ -176,6 +194,8 @@ class SandboxBackend(ABC):
         """
         env: dict[str, str] = {}
         for key in config.env_passthrough:
+            if not config.pass_aws_env and key in AWS_SECRET_ENV_VARS:
+                continue
             if key in os.environ:
                 env[key] = os.environ[key]
         return env
