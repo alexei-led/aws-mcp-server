@@ -1,20 +1,12 @@
-"""Command execution utilities for AWS MCP Server.
+"""Command parsing utilities for AWS MCP Server.
 
-This module provides utilities for validating and executing commands, including:
-- AWS CLI commands
-- Basic Unix commands
-- Command pipes (piping output from one command to another)
+This module provides utilities for parsing and validating commands, including:
+- Unix command validation
+- Pipe command detection and splitting
 """
 
-import asyncio
-import logging
 import shlex
-from typing import List, TypedDict
-
-from aws_mcp_server.config import DEFAULT_TIMEOUT, MAX_OUTPUT_SIZE
-
-# Configure module logger
-logger = logging.getLogger(__name__)
+from typing import TypedDict
 
 # List of allowed Unix commands that can be used in a pipe
 ALLOWED_UNIX_COMMANDS = [
@@ -133,7 +125,7 @@ def is_pipe_command(command: str) -> bool:
     return False
 
 
-def split_pipe_command(pipe_command: str) -> List[str]:
+def split_pipe_command(pipe_command: str) -> list[str]:
     """Split a piped command into individual commands.
 
     Args:
@@ -176,103 +168,3 @@ def split_pipe_command(pipe_command: str) -> List[str]:
         commands.append(current_command.strip())
 
     return commands
-
-
-async def execute_piped_command(pipe_command: str, timeout: int | None = None) -> CommandResult:
-    """Execute a command that contains pipes.
-
-    Args:
-        pipe_command: The piped command to execute
-        timeout: Optional timeout in seconds (defaults to DEFAULT_TIMEOUT)
-
-    Returns:
-        CommandResult containing output and status
-    """
-    # Set timeout
-    if timeout is None:
-        timeout = DEFAULT_TIMEOUT
-
-    logger.debug(f"Executing piped command: {pipe_command}")
-
-    try:
-        # Split the pipe_command into individual commands
-        commands = split_pipe_command(pipe_command)
-
-        # For each command, split it into command parts for subprocess_exec
-        command_parts_list = [shlex.split(cmd) for cmd in commands]
-
-        if len(commands) == 0:
-            return CommandResult(status="error", output="Empty command")
-
-        # Execute the first command
-        first_cmd = command_parts_list[0]
-        first_process = await asyncio.create_subprocess_exec(*first_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-
-        current_process = first_process
-        current_stdout = None
-        current_stderr = None
-
-        # For each additional command in the pipe, execute it with the previous command's output
-        for cmd_parts in command_parts_list[1:]:
-            try:
-                # Wait for the previous command to complete with timeout
-                current_stdout, current_stderr = await asyncio.wait_for(current_process.communicate(), timeout)
-
-                if current_process.returncode != 0:
-                    # If previous command failed, stop the pipe execution
-                    stderr_str = current_stderr.decode("utf-8", errors="replace")
-                    logger.warning(f"Piped command failed with return code {current_process.returncode}: {pipe_command}")
-                    logger.debug(f"Command error output: {stderr_str}")
-                    return CommandResult(status="error", output=stderr_str or "Command failed with no error output")
-
-                # Create the next process with the previous output as input
-                next_process = await asyncio.create_subprocess_exec(
-                    *cmd_parts, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-
-                # Pass the output of the previous command to the input of the next command
-                stdout, stderr = await asyncio.wait_for(next_process.communicate(input=current_stdout), timeout)
-
-                current_process = next_process
-                current_stdout = stdout
-                current_stderr = stderr
-
-            except asyncio.TimeoutError:
-                logger.warning(f"Piped command timed out after {timeout} seconds: {pipe_command}")
-                try:
-                    # process.kill() is synchronous, not a coroutine
-                    current_process.kill()
-                except Exception as e:
-                    logger.error(f"Error killing process: {e}")
-                return CommandResult(status="error", output=f"Command timed out after {timeout} seconds")
-
-        # Wait for the final command to complete if it hasn't already
-        if current_stdout is None:
-            try:
-                current_stdout, current_stderr = await asyncio.wait_for(current_process.communicate(), timeout)
-            except asyncio.TimeoutError:
-                logger.warning(f"Piped command timed out after {timeout} seconds: {pipe_command}")
-                try:
-                    current_process.kill()
-                except Exception as e:
-                    logger.error(f"Error killing process: {e}")
-                return CommandResult(status="error", output=f"Command timed out after {timeout} seconds")
-
-        # Process output
-        stdout_str = current_stdout.decode("utf-8", errors="replace")
-        stderr_str = current_stderr.decode("utf-8", errors="replace")
-
-        # Truncate output if necessary
-        if len(stdout_str) > MAX_OUTPUT_SIZE:
-            logger.info(f"Output truncated from {len(stdout_str)} to {MAX_OUTPUT_SIZE} characters")
-            stdout_str = stdout_str[:MAX_OUTPUT_SIZE] + "\n... (output truncated)"
-
-        if current_process.returncode != 0:
-            logger.warning(f"Piped command failed with return code {current_process.returncode}: {pipe_command}")
-            logger.debug(f"Command error output: {stderr_str}")
-            return CommandResult(status="error", output=stderr_str or "Command failed with no error output")
-
-        return CommandResult(status="success", output=stdout_str)
-    except Exception as e:
-        logger.error(f"Failed to execute piped command: {str(e)}")
-        return CommandResult(status="error", output=f"Failed to execute command: {str(e)}")

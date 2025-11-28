@@ -1,9 +1,7 @@
 """Tests for the sandbox module."""
 
 import os
-import platform
 import subprocess
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

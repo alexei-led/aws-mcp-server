@@ -1,7 +1,7 @@
 """Tests for the CLI executor module."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -14,7 +14,7 @@ from aws_mcp_server.cli_executor import (
     get_command_help,
     is_auth_error,
 )
-from aws_mcp_server.config import DEFAULT_TIMEOUT, MAX_OUTPUT_SIZE
+from aws_mcp_server.config import MAX_OUTPUT_SIZE
 
 
 @pytest.mark.asyncio

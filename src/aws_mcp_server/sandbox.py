@@ -165,6 +165,21 @@ class SandboxBackend(ABC):
             subprocess.TimeoutExpired: If command times out
         """
 
+    def _build_env(self, config: SandboxConfig) -> dict[str, str]:
+        """Build environment variables for sandboxed process.
+
+        Args:
+            config: Sandbox configuration with env_passthrough list
+
+        Returns:
+            Dictionary of environment variables to pass to subprocess
+        """
+        env: dict[str, str] = {}
+        for key in config.env_passthrough:
+            if key in os.environ:
+                env[key] = os.environ[key]
+        return env
+
 
 class LinuxLandlockBackend(SandboxBackend):
     """Linux sandbox using Landlock LSM.
@@ -211,14 +226,6 @@ class LinuxLandlockBackend(SandboxBackend):
             self._available = False
 
         return self._available
-
-    def _build_env(self, config: SandboxConfig) -> dict[str, str]:
-        """Build environment variables for sandboxed process."""
-        env: dict[str, str] = {}
-        for key in config.env_passthrough:
-            if key in os.environ:
-                env[key] = os.environ[key]
-        return env
 
     def execute(
         self,
@@ -351,14 +358,6 @@ class LinuxBubblewrapBackend(SandboxBackend):
         args.append("--")
 
         return args
-
-    def _build_env(self, config: SandboxConfig) -> dict[str, str]:
-        """Build environment variables for sandboxed process."""
-        env: dict[str, str] = {}
-        for key in config.env_passthrough:
-            if key in os.environ:
-                env[key] = os.environ[key]
-        return env
 
     def execute(
         self,
@@ -500,14 +499,6 @@ class MacOSSeatbeltBackend(SandboxBackend):
             network_rule=network_rule,
         )
 
-    def _build_env(self, config: SandboxConfig) -> dict[str, str]:
-        """Build environment variables for sandboxed process."""
-        env: dict[str, str] = {}
-        for key in config.env_passthrough:
-            if key in os.environ:
-                env[key] = os.environ[key]
-        return env
-
     def execute(
         self,
         cmd: "Sequence[str]",
@@ -549,14 +540,6 @@ class NoOpBackend(SandboxBackend):
     def is_available(self) -> bool:
         """Always available as fallback."""
         return True
-
-    def _build_env(self, config: SandboxConfig) -> dict[str, str]:
-        """Build environment variables."""
-        env: dict[str, str] = {}
-        for key in config.env_passthrough:
-            if key in os.environ:
-                env[key] = os.environ[key]
-        return env
 
     def execute(
         self,
