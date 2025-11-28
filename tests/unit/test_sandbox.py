@@ -17,6 +17,7 @@ from aws_mcp_server.sandbox import (
     SandboxConfig,
     SandboxError,
     execute_sandboxed,
+    get_aws_credential_paths,
     get_sandbox,
     reset_sandbox,
     sandbox_available,
@@ -408,9 +409,7 @@ class TestSandbox:
         sandbox = Sandbox(sandbox_mode="required")
 
         with patch("platform.system", return_value="Windows"):
-            with pytest.raises(
-                SandboxError, match="Sandbox required but not available"
-            ):
+            with pytest.raises(SandboxError, match="Sandbox required but not available"):
                 sandbox._select_backend("required")
 
     @pytest.mark.skipif(not IS_LINUX, reason="Linux backend selection test")
@@ -421,9 +420,7 @@ class TestSandbox:
         with patch("platform.system", return_value="Linux"):
             backend = sandbox._select_backend("auto")
             # Should return either Landlock, Bubblewrap, or NoOp depending on availability
-            assert isinstance(
-                backend, (LinuxLandlockBackend, LinuxBubblewrapBackend, NoOpBackend)
-            )
+            assert isinstance(backend, (LinuxLandlockBackend, LinuxBubblewrapBackend, NoOpBackend))
 
     @pytest.mark.skipif(not IS_MACOS, reason="macOS backend selection test")
     def test_select_backend_macos_auto(self):
@@ -564,6 +561,25 @@ class TestModuleFunctions:
                 available = sandbox_available()
                 assert available is False
 
+    def test_sandbox_available_returns_false_on_sandbox_error(self):
+        """Test sandbox_available returns False when SandboxError is raised.
+
+        This tests the fix for the issue where sandbox_available() was called
+        in a log statement before the try block, causing uncaught exceptions
+        when AWS_MCP_SANDBOX=required but no backend was available.
+        """
+        with patch("aws_mcp_server.sandbox.get_sandbox") as mock_get_sandbox:
+            mock_get_sandbox.side_effect = SandboxError("Sandbox required but not available")
+            available = sandbox_available()
+            assert available is False
+
+    def test_sandbox_available_propagates_other_exceptions(self):
+        """Test that sandbox_available only catches SandboxError, not other exceptions."""
+        with patch("aws_mcp_server.sandbox.get_sandbox") as mock_get_sandbox:
+            mock_get_sandbox.side_effect = RuntimeError("Unexpected error")
+            with pytest.raises(RuntimeError, match="Unexpected error"):
+                sandbox_available()
+
 
 class TestAsyncFunctions:
     """Tests for async sandbox functions."""
@@ -580,9 +596,7 @@ class TestAsyncFunctions:
         with patch("aws_mcp_server.config.SANDBOX_MODE", "disabled"):
             with patch("aws_mcp_server.config.SANDBOX_CREDENTIAL_MODE", "both"):
                 reset_sandbox()
-                stdout, stderr, returncode = await execute_sandboxed_async(
-                    ["echo", "hello"]
-                )
+                stdout, stderr, returncode = await execute_sandboxed_async(["echo", "hello"])
 
                 assert returncode == 0
                 assert b"hello" in stdout
@@ -610,9 +624,7 @@ class TestAsyncFunctions:
                     ["echo", "hello world"],
                     ["grep", "hello"],
                 ]
-                stdout, stderr, returncode = await execute_piped_sandboxed_async(
-                    commands
-                )
+                stdout, stderr, returncode = await execute_piped_sandboxed_async(commands)
 
                 assert returncode == 0
                 assert b"hello" in stdout
@@ -639,9 +651,7 @@ class TestAsyncFunctions:
                     ["echo", "hello"],
                     ["grep", "nonexistent"],
                 ]
-                stdout, stderr, returncode = await execute_piped_sandboxed_async(
-                    commands
-                )
+                stdout, stderr, returncode = await execute_piped_sandboxed_async(commands)
 
                 assert returncode == 1
 
@@ -676,9 +686,7 @@ class TestAsyncFunctions:
                 with pytest.raises(asyncio.TimeoutError):
                     await execute_piped_sandboxed_async(commands, timeout=0.3)
                 elapsed = time.monotonic() - start
-                assert (
-                    elapsed < 0.5
-                ), f"Pipeline took {elapsed}s, should timeout around 0.3s"
+                assert elapsed < 0.5, f"Pipeline took {elapsed}s, should timeout around 0.3s"
 
 
 class TestCredentialModes:
@@ -764,3 +772,129 @@ class TestCredentialModes:
         env = backend._build_env(config)
 
         assert env["AWS_SESSION_TOKEN"] == "token"
+
+
+class TestGetAwsCredentialPaths:
+    """Tests for get_aws_credential_paths helper function."""
+
+    def test_default_aws_directory_included(self, tmp_path, monkeypatch):
+        """Test that default ~/.aws directory is included when it exists."""
+        aws_dir = tmp_path / ".aws"
+        aws_dir.mkdir()
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+        monkeypatch.delenv("AWS_SHARED_CREDENTIALS_FILE", raising=False)
+        monkeypatch.delenv("AWS_CONFIG_FILE", raising=False)
+        monkeypatch.delenv("AWS_WEB_IDENTITY_TOKEN_FILE", raising=False)
+
+        paths = get_aws_credential_paths()
+
+        assert str(aws_dir) in paths
+
+    def test_default_aws_directory_not_included_when_missing(self, tmp_path, monkeypatch):
+        """Test that non-existent ~/.aws directory is not included."""
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+        monkeypatch.delenv("AWS_SHARED_CREDENTIALS_FILE", raising=False)
+        monkeypatch.delenv("AWS_CONFIG_FILE", raising=False)
+        monkeypatch.delenv("AWS_WEB_IDENTITY_TOKEN_FILE", raising=False)
+
+        paths = get_aws_credential_paths()
+
+        assert len(paths) == 0
+
+    def test_custom_credentials_file_included(self, tmp_path, monkeypatch):
+        """Test that AWS_SHARED_CREDENTIALS_FILE path is included."""
+        creds_file = tmp_path / "custom_credentials"
+        creds_file.write_text("[default]\naws_access_key_id = test\n")
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "nonexistent")
+        monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(creds_file))
+        monkeypatch.delenv("AWS_CONFIG_FILE", raising=False)
+        monkeypatch.delenv("AWS_WEB_IDENTITY_TOKEN_FILE", raising=False)
+
+        paths = get_aws_credential_paths()
+
+        assert str(creds_file) in paths
+
+    def test_custom_config_file_included(self, tmp_path, monkeypatch):
+        """Test that AWS_CONFIG_FILE path is included."""
+        config_file = tmp_path / "custom_config"
+        config_file.write_text("[default]\nregion = us-west-2\n")
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "nonexistent")
+        monkeypatch.delenv("AWS_SHARED_CREDENTIALS_FILE", raising=False)
+        monkeypatch.setenv("AWS_CONFIG_FILE", str(config_file))
+        monkeypatch.delenv("AWS_WEB_IDENTITY_TOKEN_FILE", raising=False)
+
+        paths = get_aws_credential_paths()
+
+        assert str(config_file) in paths
+
+    def test_web_identity_token_file_included(self, tmp_path, monkeypatch):
+        """Test that AWS_WEB_IDENTITY_TOKEN_FILE path is included (EKS IRSA)."""
+        token_file = tmp_path / "token"
+        token_file.write_text("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...")
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "nonexistent")
+        monkeypatch.delenv("AWS_SHARED_CREDENTIALS_FILE", raising=False)
+        monkeypatch.delenv("AWS_CONFIG_FILE", raising=False)
+        monkeypatch.setenv("AWS_WEB_IDENTITY_TOKEN_FILE", str(token_file))
+
+        paths = get_aws_credential_paths()
+
+        assert str(token_file) in paths
+
+    def test_nonexistent_custom_paths_not_included(self, tmp_path, monkeypatch):
+        """Test that non-existent custom paths are not included."""
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "nonexistent")
+        monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent/credentials")
+        monkeypatch.setenv("AWS_CONFIG_FILE", "/nonexistent/config")
+        monkeypatch.setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/nonexistent/token")
+
+        paths = get_aws_credential_paths()
+
+        assert len(paths) == 0
+
+    def test_duplicate_paths_deduplicated(self, tmp_path, monkeypatch):
+        """Test that duplicate paths are deduplicated."""
+        aws_dir = tmp_path / ".aws"
+        aws_dir.mkdir()
+        creds_file = aws_dir / "credentials"
+        creds_file.write_text("[default]\n")
+        config_file = aws_dir / "config"
+        config_file.write_text("[default]\n")
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+        monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(creds_file))
+        monkeypatch.setenv("AWS_CONFIG_FILE", str(config_file))
+        monkeypatch.delenv("AWS_WEB_IDENTITY_TOKEN_FILE", raising=False)
+
+        paths = get_aws_credential_paths()
+
+        assert len(paths) == len(set(paths))
+
+    def test_all_paths_combined(self, tmp_path, monkeypatch):
+        """Test that all credential paths are included when all exist."""
+        aws_dir = tmp_path / ".aws"
+        aws_dir.mkdir()
+
+        custom_creds = tmp_path / "custom_creds"
+        custom_creds.write_text("[default]\n")
+
+        custom_config = tmp_path / "custom_config"
+        custom_config.write_text("[default]\n")
+
+        token_file = tmp_path / "token"
+        token_file.write_text("token")
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+        monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(custom_creds))
+        monkeypatch.setenv("AWS_CONFIG_FILE", str(custom_config))
+        monkeypatch.setenv("AWS_WEB_IDENTITY_TOKEN_FILE", str(token_file))
+
+        paths = get_aws_credential_paths()
+
+        assert str(aws_dir) in paths
+        assert str(custom_creds) in paths
+        assert str(custom_config) in paths
+        assert str(token_file) in paths
