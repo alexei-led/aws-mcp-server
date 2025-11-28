@@ -326,7 +326,11 @@ class TestMacOSSeatbeltBackend:
         )
 
         with patch("os.path.exists", return_value=True):
-            profile = backend._build_profile(config)
+            with patch(
+                "aws_mcp_server.sandbox.get_aws_credential_paths",
+                return_value=["/Users/test/.aws"],
+            ):
+                profile = backend._build_profile(config)
 
         assert "(version 1)" in profile
         assert "(deny default)" in profile
