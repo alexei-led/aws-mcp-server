@@ -151,9 +151,11 @@ async def execute_aws_command(
         cmd_parts = shlex.split(command)
         logger.debug(f"Added region to command: {command}")
 
-    logger.debug(f"Executing AWS command: {command} (sandbox: {sandbox_available()})")
-
     try:
+        logger.debug(
+            f"Executing AWS command: {command} (sandbox: {sandbox_available()})"
+        )
+
         # Execute in sandbox
         stdout, stderr, returncode = await execute_sandboxed_async(
             cmd_parts,
@@ -255,11 +257,11 @@ async def execute_pipe_command(
             commands[0] = f"{commands[0]} --region {AWS_REGION}"
             logger.debug(f"Added region to first piped command: {commands[0]}")
 
-    logger.debug(
-        f"Executing piped command: {pipe_command} (sandbox: {sandbox_available()})"
-    )
-
     try:
+        logger.debug(
+            f"Executing piped command: {pipe_command} (sandbox: {sandbox_available()})"
+        )
+
         # Convert commands to list of command parts
         command_parts_list = [shlex.split(cmd) for cmd in commands]
 
