@@ -119,11 +119,13 @@ When running outside of Docker, the AWS MCP Server provides OS-level process iso
 
 Configure via `AWS_MCP_SANDBOX` environment variable:
 
-| Mode       | Behavior                                                    |
-| ---------- | ----------------------------------------------------------- |
-| `auto`     | Use sandbox if available, fallback to unsandboxed (default) |
-| `disabled` | Never use sandbox (rely on Docker or other isolation)       |
-| `required` | Fail if sandbox is not available on the system              |
+| Mode       | Behavior                                                                 |
+| ---------- | ------------------------------------------------------------------------ |
+| `auto`     | Use sandbox if available, fallback to unsandboxed with warning (default) |
+| `disabled` | Never use sandbox (rely on Docker or other isolation)                    |
+| `required` | Fail if sandbox is unavailable OR if sandbox fails to apply at runtime   |
+
+**Note on `required` mode**: This mode provides fail-safe behavior. If the sandbox backend (e.g., Landlock) fails to apply restrictions at execution time, the command will fail rather than running unsandboxed. Use this mode when you need guaranteed isolation.
 
 ### Sandbox Restrictions
 
