@@ -18,7 +18,7 @@ The **AWS MCP Server** is a lightweight service that enables users to execute AW
 
 ### 1. Command Documentation Tool
 
-The `describe_command` tool retrieves and formats AWS CLI help information:
+The `aws_cli_help` tool retrieves and formats AWS CLI help information:
 
 - Use `aws help` and `aws <service> help` to access documentation.
 - Present results in a structured, readable format optimized for AI consumption.
@@ -27,33 +27,34 @@ The `describe_command` tool retrieves and formats AWS CLI help information:
 **Examples:**
 
 ```
-describe_command({"service": "s3"})
+aws_cli_help({"service": "s3"})
 // Returns high-level AWS S3 service documentation
 
-describe_command({"service": "s3", "command": "ls"})
+aws_cli_help({"service": "s3", "command": "ls"})
 // Returns specific documentation for the S3 ls command
 ```
 
 ### 2. Command Execution Tool
 
-The `execute_command` tool runs AWS CLI commands:
+The `aws_cli_pipeline` tool runs AWS CLI commands:
 
 - Accept complete AWS CLI command strings.
 - Execute commands using the OS's AWS CLI installation.
 - Format output for readability.
 - Support optional parameters (timeout).
 - Support Unix pipes to filter or transform output.
+- Execute commands in a sandboxed environment when available.
 
 **Examples:**
 
 ```
-execute_command({"command": "aws s3 ls"})
+aws_cli_pipeline({"command": "aws s3 ls"})
 // Lists all S3 buckets
 
-execute_command({"command": "aws ec2 describe-instances --region us-west-2"})
+aws_cli_pipeline({"command": "aws ec2 describe-instances --region us-west-2"})
 // Lists EC2 instances in the Oregon region
 
-execute_command({"command": "aws s3api list-buckets --query 'Buckets[*].Name' --output text | sort"})
+aws_cli_pipeline({"command": "aws s3api list-buckets --query 'Buckets[*].Name' --output text | sort"})
 // Lists bucket names sorted alphabetically
 ```
 
@@ -128,6 +129,7 @@ The server implements the MCP protocol with the following components:
 ```
 
 **Server Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -148,6 +150,7 @@ The server implements the MCP protocol with the following components:
 ```
 
 **Client Notification:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -159,22 +162,24 @@ The server implements the MCP protocol with the following components:
 
 The server defines two primary tools:
 
-#### describe_command
+#### aws_cli_help
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
   "id": 2,
-  "method": "tools/describe_command",
+  "method": "tools/aws_cli_help",
   "params": {
     "service": "s3",
-    "command": "ls"  // Optional
+    "command": "ls" // Optional
   }
 }
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -185,22 +190,24 @@ The server defines two primary tools:
 }
 ```
 
-#### execute_command
+#### aws_cli_pipeline
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
   "id": 3,
-  "method": "tools/execute_command",
+  "method": "tools/aws_cli_pipeline",
   "params": {
     "command": "aws s3 ls --region us-west-2",
-    "timeout": 60  // Optional
+    "timeout": 60 // Optional
   }
 }
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -219,6 +226,7 @@ The server provides access to AWS resources:
 #### aws_profiles
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -228,6 +236,7 @@ The server provides access to AWS resources:
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -245,6 +254,7 @@ The server provides access to AWS resources:
 #### aws_regions
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -254,13 +264,18 @@ The server provides access to AWS resources:
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
   "id": 5,
   "result": {
     "regions": [
-      { "name": "us-east-1", "description": "US East (N. Virginia)", "is_current": true },
+      {
+        "name": "us-east-1",
+        "description": "US East (N. Virginia)",
+        "is_current": true
+      },
       { "name": "us-east-2", "description": "US East (Ohio)" },
       { "name": "us-west-1", "description": "US West (N. California)" },
       { "name": "us-west-2", "description": "US West (Oregon)" }
@@ -272,6 +287,7 @@ The server provides access to AWS resources:
 #### aws_region_details
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -284,6 +300,7 @@ The server provides access to AWS resources:
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -319,6 +336,7 @@ The server provides access to AWS resources:
 #### aws_environment
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -328,6 +346,7 @@ The server provides access to AWS resources:
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -345,6 +364,7 @@ The server provides access to AWS resources:
 #### aws_account
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -354,6 +374,7 @@ The server provides access to AWS resources:
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -383,6 +404,7 @@ The server returns standardized JSON-RPC error responses:
 ```
 
 **Standard Error Codes:**
+
 - `-32600`: Invalid Request
 - `-32601`: Method Not Found
 - `-32602`: Invalid Parameters
@@ -398,16 +420,22 @@ graph TD
     MCP --> Tools[Tool Handler]
     MCP --> Resources[Resources Handler]
     MCP --> Prompts[Prompt Templates]
-    Tools --> Executor[AWS CLI Executor]
+    Tools --> Security[Security Validator]
+    Security --> Executor[AWS CLI Executor]
+    Executor --> Sandbox[Sandbox\nLandlock/Seatbelt/bwrap]
+    Sandbox --> AWS_CLI[AWS CLI]
     Resources --> AWS_Config[AWS Config Reader]
     Resources --> AWS_STS[AWS STS Client]
-    
+
     style Client fill:#f9f,stroke:#333,stroke-width:2px
     style MCP fill:#bbf,stroke:#333,stroke-width:2px
     style Tools fill:#bfb,stroke:#333,stroke-width:2px
     style Resources fill:#fbf,stroke:#333,stroke-width:2px
     style Prompts fill:#bff,stroke:#333,stroke-width:2px
+    style Security fill:#ffa,stroke:#333,stroke-width:2px
     style Executor fill:#fbb,stroke:#333,stroke-width:2px
+    style Sandbox fill:#aff,stroke:#333,stroke-width:2px
+    style AWS_CLI fill:#ddd,stroke:#333,stroke-width:2px
     style AWS_Config fill:#ffd,stroke:#333,stroke-width:2px
     style AWS_STS fill:#dff,stroke:#333,stroke-width:2px
 ```
@@ -421,35 +449,47 @@ graph TD
    - Implemented using FastMCP library
 
 2. **Tool Handler**
-   - Processes `describe_command` requests
-   - Processes `execute_command` requests
+   - Processes `aws_cli_help` requests
+   - Processes `aws_cli_pipeline` requests
    - Validates parameters
    - Handles command execution with timeout
 
-3. **AWS CLI Executor**
+3. **Security Validator**
+   - Validates commands against dangerous command patterns
+   - Enforces safe patterns for read-only operations
+   - Supports custom security configurations via YAML
+   - Provides strict and permissive security modes
+
+4. **AWS CLI Executor**
    - Executes AWS CLI commands via subprocess
    - Captures standard output and error streams
    - Handles command timing and timeout
    - Supports piped commands with Unix utilities
 
-4. **Prompt Templates**
+5. **Sandbox**
+   - Provides OS-level process isolation for command execution
+   - Linux: Landlock LSM (kernel 5.13+) or Bubblewrap fallback
+   - macOS: Seatbelt (sandbox-exec)
+   - Configurable read/write paths and credential passing
+
+6. **Prompt Templates**
    - Provides pre-defined prompt templates for common AWS tasks
    - Helps ensure best practices in AWS operations
    - Supports various use cases like security, cost optimization, etc.
 
 ### New Components for Resources
 
-5. **Resources Handler**
+1. **Resources Handler**
    - Manages MCP Resources capabilities
    - Provides access to AWS-specific resources
    - Handles resource requests and responds with resource data
 
-6. **AWS Config Reader**
+2. **AWS Config Reader**
    - Reads AWS configuration files (~/.aws/config, ~/.aws/credentials)
    - Provides information about available profiles
    - Respects AWS credential precedence rules
 
-7. **AWS STS Client**
+3. **AWS STS Client**
    - Obtains AWS account information
    - Verifies credential validity
    - Provides current identity information
@@ -473,7 +513,7 @@ mcp = FastMCP(
 
 # Register tools
 @mcp.tool()
-async def describe_command(
+async def aws_cli_help(
     service: str = Field(description="AWS service (e.g., s3, ec2)"),
     command: str | None = Field(description="Command within the service", default=None),
     ctx: Context | None = None,
@@ -482,12 +522,12 @@ async def describe_command(
     # Implementation...
 
 @mcp.tool()
-async def execute_command(
-    command: str = Field(description="Complete AWS CLI command to execute"),
+async def aws_cli_pipeline(
+    command: str = Field(description="Complete AWS CLI command to execute (can include pipes)"),
     timeout: int | None = Field(description="Timeout in seconds", default=None),
     ctx: Context | None = None,
 ) -> CommandResult:
-    """Execute an AWS CLI command."""
+    """Execute an AWS CLI command, optionally with Unix command pipes."""
     # Implementation...
 
 # Register prompts
@@ -529,7 +569,7 @@ def register_resources(mcp):
                 for region in regions
             ]
         }
-    
+
     @mcp.resource(uri="aws://config/regions/{region}", mime_type="application/json")
     async def aws_region_details(region: str) -> dict:
         """Get detailed information about a specific AWS region."""
@@ -553,47 +593,25 @@ Current structure:
 ```
 aws-mcp-server/
 ├── src/
-│   ├── aws_mcp_server/
-│   │   ├── __init__.py
-│   │   ├── __main__.py
-│   │   ├── cli_executor.py
-│   │   ├── config.py
-│   │   ├── prompts.py
-│   │   ├── server.py
-│   │   └── tools.py
+│   └── aws_mcp_server/
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── cli_executor.py
+│       ├── config.py
+│       ├── prompts.py
+│       ├── resources.py        # MCP resource implementations
+│       ├── sandbox.py          # OS-level process isolation
+│       ├── security.py         # Command validation and security
+│       ├── server.py
+│       └── tools.py
 ├── tests/
 │   ├── unit/
-│   │   └── ...
-│   └── integration/
-│       └── ...
-├── deploy/
-│   └── docker/
-│       ├── Dockerfile
-│       └── docker-compose.yml
-├── docs/
-│   └── VERSION.md
-├── pyproject.toml
-└── README.md
-```
-
-Extended structure with resources:
-
-```
-aws-mcp-server/
-├── src/
-│   ├── aws_mcp_server/
-│   │   ├── __init__.py
-│   │   ├── __main__.py
-│   │   ├── cli_executor.py
-│   │   ├── config.py
-│   │   ├── prompts.py
-│   │   ├── resources.py        # New file for resource implementations
-│   │   ├── server.py
-│   │   └── tools.py
-├── tests/
-│   ├── unit/
-│   │   ├── test_resources.py   # New tests for resources
-│   │   └── ...
+│   │   ├── test_cli_executor.py
+│   │   ├── test_resources.py
+│   │   ├── test_sandbox.py
+│   │   ├── test_security.py
+│   │   ├── test_server.py
+│   │   └── test_tools.py
 │   └── integration/
 │       └── ...
 ├── deploy/
@@ -622,6 +640,7 @@ Implement comprehensive error handling for common scenarios:
 ### 1. Docker Deployment (Primary Method)
 
 **Dockerfile:**
+
 ```dockerfile
 FROM python:3.13-slim
 
@@ -651,16 +670,17 @@ ENTRYPOINT ["python", "-m", "aws_mcp_server"]
 ```
 
 **Docker Compose:**
+
 ```yaml
-version: '3'
+version: "3"
 services:
   aws-mcp-server:
     build: .
     volumes:
-      - ~/.aws:/root/.aws:ro  # Mount AWS credentials as read-only
+      - ~/.aws:/root/.aws:ro # Mount AWS credentials as read-only
     environment:
-      - AWS_PROFILE=default   # Optional: specify AWS profile
-      - AWS_REGION=us-east-1  # Optional: specify AWS region
+      - AWS_PROFILE=default # Optional: specify AWS profile
+      - AWS_REGION=us-east-1 # Optional: specify AWS region
 ```
 
 ### 2. Alternative: Python Virtual Environment
@@ -711,9 +731,9 @@ name: Test and Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
@@ -723,7 +743,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

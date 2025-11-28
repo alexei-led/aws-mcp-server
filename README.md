@@ -18,15 +18,15 @@ The AWS MCP Server provides a bridge between MCP-aware AI assistants (like Claud
 ```mermaid
 flowchart LR
     AI[AI Assistant] <-->|MCP Protocol| Server[AWS MCP Server]
-    Server <-->|Subprocess| AWS[AWS CLI]
+    Server --> Security[Security Validator]
+    Security --> Sandbox[Sandbox]
+    Sandbox --> AWS[AWS CLI]
     AWS <-->|API| Cloud[AWS Cloud]
 ```
 
 ## Demo
 
 [Demo](https://private-user-images.githubusercontent.com/1898375/424996801-b51ddc8e-5df5-40c4-8509-84c1a7800d62.mp4?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDI0NzY5OTUsIm5iZiI6MTc0MjQ3NjY5NSwicGF0aCI6Ii8xODk4Mzc1LzQyNDk5NjgwMS1iNTFkZGM4ZS01ZGY1LTQwYzQtODUwOS04NGMxYTc4MDBkNjIubXA0P1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI1MDMyMCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNTAzMjBUMTMxODE1WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9NjgwNTM4MDVjN2U4YjQzN2Y2N2Y5MGVkMThiZTgxYWEyNzBhZTlhMTRjZDY3ZDJmMzJkNmViM2U4M2U4MTEzNSZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QifQ.tIb7uSkDpSaspIluzCliHS8ATmlzkvEnF3CiClD-UGQ)
-
-The video demonstrates using Claude Desktop with AWS MCP Server to create a new AWS EC2 instance with AWS SSM agent installed.
 
 ## Features
 
@@ -65,7 +65,7 @@ The Docker image supports both AMD64/x86_64 (Intel/AMD) and ARM64 (Apple Silicon
 > ```bash
 > # Use the latest stable version
 > docker pull ghcr.io/alexei-led/aws-mcp-server:latest
-> 
+>
 > # Or pin to a specific version (recommended for production)
 > docker pull ghcr.io/alexei-led/aws-mcp-server:1.0.0
 > ```
@@ -100,15 +100,17 @@ python -m aws_mcp_server
 
 The AWS MCP Server can be configured using environment variables:
 
-| Environment Variable      | Description                                  | Default   |
-|--------------------------|----------------------------------------------|-----------|
-| `AWS_MCP_TIMEOUT`        | Command execution timeout in seconds         | 300       |
-| `AWS_MCP_MAX_OUTPUT`     | Maximum output size in characters            | 100000    |
-| `AWS_MCP_TRANSPORT`      | Transport protocol to use ("stdio" or "sse") | stdio     |
-| `AWS_PROFILE`            | AWS profile to use                           | default   |
-| `AWS_REGION`             | AWS region to use                            | us-east-1 |
-| `AWS_MCP_SECURITY_MODE`  | Security mode ("strict" or "permissive")     | strict    |
-| `AWS_MCP_SECURITY_CONFIG`| Path to custom security configuration file   | ""        |
+| Environment Variable          | Description                                                          | Default   |
+| ----------------------------- | -------------------------------------------------------------------- | --------- |
+| `AWS_MCP_TIMEOUT`             | Command execution timeout in seconds                                 | 300       |
+| `AWS_MCP_MAX_OUTPUT`          | Maximum output size in characters                                    | 100000    |
+| `AWS_MCP_TRANSPORT`           | Transport protocol to use ("stdio" or "sse")                         | stdio     |
+| `AWS_PROFILE`                 | AWS profile to use                                                   | default   |
+| `AWS_REGION`                  | AWS region to use                                                    | us-east-1 |
+| `AWS_MCP_SECURITY_MODE`       | Security mode ("strict" or "permissive")                             | strict    |
+| `AWS_MCP_SECURITY_CONFIG`     | Path to custom security configuration file                           | ""        |
+| `AWS_MCP_SANDBOX`             | Sandbox mode ("auto", "disabled", "required")                        | auto      |
+| `AWS_MCP_SANDBOX_CREDENTIALS` | How to pass AWS credentials to sandbox ("env", "aws_config", "both") | both      |
 
 **Important:** Securely manage the AWS credentials provided to the server, whether via mounted `~/.aws` files or environment variables. Ensure the credentials follow the principle of least privilege as detailed in the [Security Considerations](#security-considerations) section. When running via Docker, ensure these variables are passed correctly to the container environment (e.g., using `docker run -e VAR=value ...`).
 
@@ -116,50 +118,50 @@ The AWS MCP Server can be configured using environment variables:
 
 Security is paramount when executing commands against your AWS environment. While AWS MCP Server provides functionality, **you are responsible** for configuring and running it securely. Please adhere strictly to the following:
 
-**1. Recommended Deployment: Docker Container**
+### 1. Recommended Deployment: Docker Container
 
-*   **Isolation:** Running the server inside a Docker container is the **strongly recommended and default** deployment method. Containerization provides crucial filesystem and process isolation. Potentially destructive Unix commands (like `rm`, `mv`) executed via pipes, even if misused, will be contained within the ephemeral Docker environment and will **not** affect your host machine's filesystem. The container can be easily stopped and recreated.
-*   **Controlled Environment:** Docker ensures a consistent environment with necessary dependencies, reducing unexpected behavior.
+- **Isolation:** Running the server inside a Docker container is the **strongly recommended and default** deployment method. Containerization provides crucial filesystem and process isolation. Potentially destructive Unix commands (like `rm`, `mv`) executed via pipes, even if misused, will be contained within the ephemeral Docker environment and will **not** affect your host machine's filesystem. The container can be easily stopped and recreated.
+- **Controlled Environment:** Docker ensures a consistent environment with necessary dependencies, reducing unexpected behavior.
 
-**2. AWS Credentials and IAM Least Privilege (Critical)**
+### 2. AWS Credentials and IAM Least Privilege (Critical)
 
-*   **User Responsibility:** You provide the AWS credentials to the server (via mounted `~/.aws` or environment variables).
-*   **Least Privilege is Essential:** The server executes AWS CLI commands *using the credentials you provide*. It is **absolutely critical** that these credentials belong to an IAM principal (User or Role) configured with the **minimum necessary permissions** (least privilege) for *only* the AWS actions you intend to perform through this tool.
-    *   **Do Not Use Root Credentials:** Never use AWS account root user credentials.
-    *   **Regularly Review Permissions:** Periodically audit the IAM permissions associated with the credentials.
-*   **Impact Limitation:** Properly configured IAM permissions are the **primary mechanism** for limiting the potential impact of *any* command executed via the server, whether intended or unintended. Even if a command were manipulated, it could only perform actions allowed by the specific IAM policy.
+- **User Responsibility:** You provide the AWS credentials to the server (via mounted `~/.aws` or environment variables).
+- **Least Privilege is Essential:** The server executes AWS CLI commands _using the credentials you provide_. It is **absolutely critical** that these credentials belong to an IAM principal (User or Role) configured with the **minimum necessary permissions** (least privilege) for _only_ the AWS actions you intend to perform through this tool.
+  - **Do Not Use Root Credentials:** Never use AWS account root user credentials.
+  - **Regularly Review Permissions:** Periodically audit the IAM permissions associated with the credentials.
+- **Impact Limitation:** Properly configured IAM permissions are the **primary mechanism** for limiting the potential impact of _any_ command executed via the server, whether intended or unintended. Even if a command were manipulated, it could only perform actions allowed by the specific IAM policy.
 
-**3. Trusted User Model**
+### 3. Trusted User Model
 
-*   The server assumes the end-user interacting with the MCP client (e.g., Claude Desktop, Cursor) is the **same trusted individual** who configured the server and provided the least-privilege AWS credentials. Do not expose the server or connected client to untrusted users.
+- The server assumes the end-user interacting with the MCP client (e.g., Claude Desktop, Cursor) is the **same trusted individual** who configured the server and provided the least-privilege AWS credentials. Do not expose the server or connected client to untrusted users.
 
-**4. Understanding Execution Risks (Current Implementation)**
+### 4. Understanding Execution Risks (Current Implementation)
 
-*   **Command Execution:** The current implementation uses shell features (`shell=True` in subprocess calls) to execute AWS commands and handle Unix pipes. While convenient, this approach carries inherent risks if the input command string were manipulated (command injection).
-*   **Mitigation via Operational Controls:** In the context of the **trusted user model** and **Docker deployment**, these risks are mitigated operationally:
-    *   The trusted user is assumed not to provide intentionally malicious commands against their own environment.
-    *   Docker contains filesystem side-effects.
-    *   **Crucially, IAM least privilege limits the scope of *any* AWS action that could be executed.**
-*   **Credential Exfiltration Risk:** Despite containerization and IAM, a sophisticated command injection could potentially attempt to read the mounted credentials (`~/.aws`) or environment variables within the container and exfiltrate them (e.g., via `curl`). **Strict IAM policies remain the most vital defense** to limit the value of potentially exfiltrated credentials.
+- **Command Execution:** The current implementation uses shell features (`shell=True` in subprocess calls) to execute AWS commands and handle Unix pipes. While convenient, this approach carries inherent risks if the input command string were manipulated (command injection).
+- **Mitigation via Operational Controls:** In the context of the **trusted user model** and **Docker deployment**, these risks are mitigated operationally:
+  - The trusted user is assumed not to provide intentionally malicious commands against their own environment.
+  - Docker contains filesystem side-effects.
+  - **Crucially, IAM least privilege limits the scope of _any_ AWS action that could be executed.**
+- **Credential Exfiltration Risk:** Despite containerization and IAM, a sophisticated command injection could potentially attempt to read the mounted credentials (`~/.aws`) or environment variables within the container and exfiltrate them (e.g., via `curl`). **Strict IAM policies remain the most vital defense** to limit the value of potentially exfiltrated credentials.
 
-**5. Network Exposure (SSE Transport)**
+### 5. Network Exposure (SSE Transport)
 
-*   If using the `sse` transport (which implies a network listener), ensure you bind the server only to trusted network interfaces (e.g., `localhost`) or implement appropriate network security controls (firewalls, authentication proxies) if exposing it more broadly. The default `stdio` transport does not open network ports.
+- If using the `sse` transport (which implies a network listener), ensure you bind the server only to trusted network interfaces (e.g., `localhost`) or implement appropriate network security controls (firewalls, authentication proxies) if exposing it more broadly. The default `stdio` transport does not open network ports.
 
-**6. Shared Responsibility Summary**
+### 6. Shared Responsibility Summary
 
-*   **AWS MCP Server provides the tool.**
-*   **You, the user, are responsible for:**
-    *   Running it within the recommended secure Docker environment.
-    *   Providing and securely managing **least-privilege** AWS credentials.
-    *   Ensuring only trusted users interact with the server/client.
-    *   Securing the network environment if applicable.
+- **AWS MCP Server provides the tool.**
+- **You, the user, are responsible for:**
+  - Running it within the recommended secure Docker environment.
+  - Providing and securely managing **least-privilege** AWS credentials.
+  - Ensuring only trusted users interact with the server/client.
+  - Securing the network environment if applicable.
 
 By strictly adhering to Docker deployment and meticulous IAM least-privilege configuration, you establish the necessary operational controls for using the AWS MCP Server securely with its current implementation.
 
 ## Integrating with Claude Desktop
 
-### Configuration
+### Setup
 
 To manually integrate AWS MCP Server with Claude Desktop:
 
@@ -168,6 +170,7 @@ To manually integrate AWS MCP Server with Claude Desktop:
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
 2. **Edit the configuration file** to include the AWS MCP Server:
+
    ```json
    {
      "mcpServers": {
@@ -185,7 +188,7 @@ To manually integrate AWS MCP Server with Claude Desktop:
      }
    }
    ```
-   
+
 3. **Restart Claude Desktop** to apply the changes
    - After restarting, you should see a hammer 🔨 icon in the bottom right corner of the input box
    - This indicates that the AWS MCP Server is available for use
@@ -193,113 +196,61 @@ To manually integrate AWS MCP Server with Claude Desktop:
 ```mermaid
 flowchart TD
     subgraph "User Device"
-        config[Edit claude_desktop_config.json]
         claude[Claude Desktop]
         docker[Docker Container]
-        aws_creds[AWS Credentials]
+        aws_creds[~/.aws Credentials]
     end
-    
-    subgraph "AWS Cloud"
+
+    subgraph "MCP Server"
+        tools[Tools]
+        security[Security Validator]
+        sandbox[Sandbox]
+        resources[Resources]
+    end
+
+    subgraph "AWS"
+        cli[AWS CLI]
         services[AWS Services]
     end
-    
-    subgraph "MCP Server Components"
-        tools[AWS CLI Tools]
-        resources[AWS Resources]
-        templates[Prompt Templates]
-    end
-    
-    config -->|Add MCP Server Config| claude
-    claude -->|Docker Run Command| docker
-    docker --- tools
-    docker --- resources
-    docker --- templates
-    aws_creds -->|Mount Read-only| docker
-    resources -.->|Read| aws_creds
-    tools -->|API Calls| services
+
+    claude -->|MCP Protocol| docker
+    docker --> tools
+    tools --> security
+    security --> sandbox
+    sandbox --> cli
+    docker --> resources
+    aws_creds -->|Mount :ro| docker
+    cli -->|API| services
 ```
 
 ### Example Interactions
 
-**Getting AWS CLI Documentation**:
+**Get CLI help:**
+
 ```
-User: What are the available options for the AWS S3 cp command?
-
-Claude: Let me get that information for you.
-
-The AWS S3 cp command has the following options:
-
-NAME
-    cp - Copies a local file or S3 object to another location locally or in S3.
-
-SYNOPSIS
-    cp <LocalPath> <S3Uri> or <S3Uri> <LocalPath> or <S3Uri> <S3Uri> [--acl <value>] [--cache-control <value>] ...
+User: How do I copy files to S3?
+Claude: [uses aws_cli_help tool] → Returns aws s3 cp documentation
 ```
 
-**Executing AWS CLI Commands**:
+**Execute commands:**
+
 ```
 User: List my S3 buckets
-
-Claude: I'll list your S3 buckets for you.
-
-2023-10-15 14:30:45 my-bucket-1
-2023-11-20 09:15:32 my-bucket-2
-2024-01-05 11:22:18 my-backup-bucket
+Claude: [uses aws_cli_pipeline tool] → aws s3 ls
 ```
 
-**Using Command Pipes**:
+**Use pipes:**
+
 ```
-User: List my S3 buckets that have "backup" in their name and show them in alphabetical order
-
-Claude: Let me find that for you.
-
-2024-01-05 11:22:18 my-backup-bucket
-2024-03-01 09:44:12 weekly-backup-bucket
-2024-03-15 13:10:57 database-backup-bucket
+User: Show running EC2 instances sorted by launch time
+Claude: [uses aws_cli_pipeline tool] → aws ec2 describe-instances --query 'Reservations[].Instances[?State.Name==`running`]' | jq 'sort_by(.LaunchTime)'
 ```
 
-**Accessing AWS Resources**:
+**Access resources:**
+
 ```
-User: What AWS regions are available for me to use?
-
-Claude: Let me check what AWS regions are available for you.
-
-Available regions:
-- us-east-1 (US East, N. Virginia) - Currently selected
-- us-east-2 (US East, Ohio)
-- us-west-1 (US West, N. California)
-- us-west-2 (US West, Oregon)
-- eu-west-1 (EU West, Ireland)
-- eu-central-1 (EU Central, Frankfurt)
-- ap-northeast-1 (Asia Pacific, Tokyo)
-- ap-southeast-1 (Asia Pacific, Singapore)
-- ap-southeast-2 (Asia Pacific, Sydney)
-
-You're currently using the us-east-1 region.
-```
-
-**Using Prompt Templates**:
-```
-User: I need to perform a security audit of my S3 buckets
-
-Claude: I'll help you audit the security of your S3 buckets.
-
-Here are AWS CLI commands to perform a comprehensive security audit:
-
-# List all buckets with public access settings
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | xargs -I {} aws s3api get-public-access-block --bucket {}
-
-# Check bucket policies for public access
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | xargs -I {} aws s3api get-bucket-policy --bucket {} 2>/dev/null
-
-# Identify buckets without encryption
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | xargs -I {} aws s3api get-bucket-encryption --bucket {} 2>/dev/null
-
-# Check for buckets without logging enabled
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | xargs -I {} aws s3api get-bucket-logging --bucket {} 2>/dev/null
-
-# Verify bucket versioning status
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | xargs -I {} aws s3api get-bucket-versioning --bucket {}
+User: What region am I using?
+Claude: [reads aws://config/environment resource] → Shows current profile and region
 ```
 
 ## Available Prompt Templates
@@ -308,45 +259,45 @@ The AWS MCP Server includes the following pre-defined prompt templates:
 
 ### Core Operations
 
-| Prompt                 | Description                                                   | Parameters                                          |
-|------------------------|---------------------------------------------------------------|-----------------------------------------------------|
-| `create_resource`      | Generate commands to create AWS resources with best practices | `resource_type`, `resource_name`                    |
-| `resource_inventory`   | Create comprehensive inventory of resources                   | `service`, `region` (optional)                      |
-| `troubleshoot_service` | Generate commands to troubleshoot service issues              | `service`, `resource_id`                            |
-| `resource_cleanup`     | Identify and safely clean up resources                        | `service`, `criteria` (optional)                    |
+| Prompt                 | Description                                                   | Parameters                       |
+| ---------------------- | ------------------------------------------------------------- | -------------------------------- |
+| `create_resource`      | Generate commands to create AWS resources with best practices | `resource_type`, `resource_name` |
+| `resource_inventory`   | Create comprehensive inventory of resources                   | `service`, `region` (optional)   |
+| `troubleshoot_service` | Generate commands to troubleshoot service issues              | `service`, `resource_id`         |
+| `resource_cleanup`     | Identify and safely clean up resources                        | `service`, `criteria` (optional) |
 
 ### Security & Compliance
 
-| Prompt                     | Description                                                | Parameters                                          |
-|----------------------------|------------------------------------------------------------|-----------------------------------------------------|
-| `security_audit`           | Audit security settings for a specific AWS service         | `service`                                           |
-| `security_posture_assessment` | Comprehensive security assessment across your AWS environment | None                                          |
-| `iam_policy_generator`     | Create least-privilege IAM policies                        | `service`, `actions`, `resource_pattern` (optional) |
-| `compliance_check`         | Check compliance with standards                            | `compliance_standard`, `service` (optional)         |
+| Prompt                        | Description                                                   | Parameters                                          |
+| ----------------------------- | ------------------------------------------------------------- | --------------------------------------------------- |
+| `security_audit`              | Audit security settings for a specific AWS service            | `service`                                           |
+| `security_posture_assessment` | Comprehensive security assessment across your AWS environment | None                                                |
+| `iam_policy_generator`        | Create least-privilege IAM policies                           | `service`, `actions`, `resource_pattern` (optional) |
+| `compliance_check`            | Check compliance with standards                               | `compliance_standard`, `service` (optional)         |
 
 ### Cost & Performance
 
-| Prompt               | Description                                             | Parameters                                         |
-|----------------------|---------------------------------------------------------|----------------------------------------------------|
-| `cost_optimization`  | Find cost optimization opportunities for a service      | `service`                                          |
-| `performance_tuning` | Optimize and tune performance of AWS resources          | `service`, `resource_id`                           |
+| Prompt               | Description                                        | Parameters               |
+| -------------------- | -------------------------------------------------- | ------------------------ |
+| `cost_optimization`  | Find cost optimization opportunities for a service | `service`                |
+| `performance_tuning` | Optimize and tune performance of AWS resources     | `service`, `resource_id` |
 
 ### Infrastructure & Architecture
 
-| Prompt                      | Description                                              | Parameters                                           |
-|-----------------------------|----------------------------------------------------------|------------------------------------------------------|
-| `serverless_deployment`     | Deploy serverless applications with best practices       | `application_name`, `runtime` (optional)             |
-| `container_orchestration`   | Set up container environments (ECS/EKS)                  | `cluster_name`, `service_type` (optional)            |
-| `vpc_network_design`        | Design and implement secure VPC networking               | `vpc_name`, `cidr_block` (optional)                  |
-| `infrastructure_automation` | Automate infrastructure management                       | `resource_type`, `automation_scope` (optional)       |
-| `multi_account_governance`  | Implement secure multi-account strategies                | `account_type` (optional)                            |
+| Prompt                      | Description                                        | Parameters                                     |
+| --------------------------- | -------------------------------------------------- | ---------------------------------------------- |
+| `serverless_deployment`     | Deploy serverless applications with best practices | `application_name`, `runtime` (optional)       |
+| `container_orchestration`   | Set up container environments (ECS/EKS)            | `cluster_name`, `service_type` (optional)      |
+| `vpc_network_design`        | Design and implement secure VPC networking         | `vpc_name`, `cidr_block` (optional)            |
+| `infrastructure_automation` | Automate infrastructure management                 | `resource_type`, `automation_scope` (optional) |
+| `multi_account_governance`  | Implement secure multi-account strategies          | `account_type` (optional)                      |
 
 ### Reliability & Monitoring
 
-| Prompt               | Description                                           | Parameters                                          |
-|----------------------|-------------------------------------------------------|-----------------------------------------------------|
-| `service_monitoring` | Set up comprehensive monitoring                       | `service`, `metric_type` (optional)                 |
-| `disaster_recovery`  | Implement enterprise-grade DR solutions               | `service`, `recovery_point_objective` (optional)    |
+| Prompt               | Description                             | Parameters                                       |
+| -------------------- | --------------------------------------- | ------------------------------------------------ |
+| `service_monitoring` | Set up comprehensive monitoring         | `service`, `metric_type` (optional)              |
+| `disaster_recovery`  | Implement enterprise-grade DR solutions | `service`, `recovery_point_objective` (optional) |
 
 ## Security
 
@@ -356,7 +307,7 @@ The AWS MCP Server implements a comprehensive multi-layered approach to command 
 
 The server validates all AWS CLI commands through a three-layer system:
 
-1. **Basic Command Structure**: 
+1. **Basic Command Structure**:
    - Verifies commands start with 'aws' prefix and contain a valid service
    - Ensures proper command syntax
 
@@ -370,51 +321,96 @@ The server validates all AWS CLI commands through a three-layer system:
    - Restricts commands to a safe allowlist
    - Prevents filesystem manipulation and arbitrary command execution
 
+### Sandbox Execution
+
+When running outside of Docker, the AWS MCP Server provides OS-level process isolation through sandboxing. This adds defense-in-depth beyond command validation by restricting what the subprocess can access.
+
+#### Supported Sandbox Backends
+
+| Platform | Backend      | Requirements                                         |
+| -------- | ------------ | ---------------------------------------------------- |
+| Linux    | Landlock LSM | Kernel 5.13+ with Landlock enabled                   |
+| Linux    | Bubblewrap   | `bwrap` installed (fallback if Landlock unavailable) |
+| macOS    | Seatbelt     | Built-in (sandbox-exec)                              |
+
+#### Sandbox Modes
+
+Configure via `AWS_MCP_SANDBOX` environment variable:
+
+- **auto** (default): Use sandbox if available, fall back to unsandboxed execution
+- **disabled**: Never use sandbox (rely on Docker or other isolation)
+- **required**: Fail if sandbox is not available on the system
+
+#### Sandbox Restrictions
+
+When sandboxing is active, commands run with:
+
+- **Read-only access** to system paths (`/usr`, `/bin`, `/lib`, `/etc`)
+- **Write access** limited to `/tmp` and the current directory
+- **Network access** enabled (required for AWS API calls)
+- **AWS credentials** passed according to `AWS_MCP_SANDBOX_CREDENTIALS` setting
+
+#### Credential Passing Modes
+
+Configure via `AWS_MCP_SANDBOX_CREDENTIALS` environment variable:
+
+- **env**: Pass AWS credentials via environment variables only
+- **aws_config**: Allow read access to `~/.aws` directory only
+- **both** (default): Both environment variables and `~/.aws` access
+
+#### When to Use Sandboxing
+
+- **Native Python deployment**: Sandboxing provides isolation when not using Docker
+- **Development environments**: Extra protection during local development
+- **CI/CD pipelines**: Add isolation layer in automated environments
+
+When running in Docker, sandboxing is typically unnecessary as Docker already provides container-level isolation. Set `AWS_MCP_SANDBOX=disabled` in Docker deployments.
+
 ### Default Security Configuration
 
 The default security configuration focuses on preventing the following attack vectors:
 
 #### 1. Identity and Access Management (IAM) Risks
 
-| Blocked Command | Security Risk |
-|-----------------|---------------|
-| `aws iam create-user` | Creates potential backdoor accounts with persistent access |
-| `aws iam create-access-key` | Creates long-term credentials that can be stolen or misused |
-| `aws iam attach-*-policy` | Potential privilege escalation via policy attachments |
-| `aws iam put-user-policy` | Inline policies can grant excessive permissions |
-| `aws iam create-policy` | Creating new policies with potentially dangerous permissions |
-| `aws iam create-login-profile` | Creates console passwords for existing users |
-| `aws iam deactivate-mfa-device` | Disables multi-factor authentication, weakening security |
-| `aws iam update-assume-role-policy` | Modifies trust relationships, enabling privilege escalation |
+| Blocked Command                     | Security Risk                                                |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `aws iam create-user`               | Creates potential backdoor accounts with persistent access   |
+| `aws iam create-access-key`         | Creates long-term credentials that can be stolen or misused  |
+| `aws iam attach-*-policy`           | Potential privilege escalation via policy attachments        |
+| `aws iam put-user-policy`           | Inline policies can grant excessive permissions              |
+| `aws iam create-policy`             | Creating new policies with potentially dangerous permissions |
+| `aws iam create-login-profile`      | Creates console passwords for existing users                 |
+| `aws iam deactivate-mfa-device`     | Disables multi-factor authentication, weakening security     |
+| `aws iam update-assume-role-policy` | Modifies trust relationships, enabling privilege escalation  |
 
 #### 2. Audit and Logging Tampering
 
-| Blocked Command | Security Risk |
-|-----------------|---------------|
-| `aws cloudtrail delete-trail` | Removes audit trail of AWS activity |
-| `aws cloudtrail stop-logging` | Stops collecting activity logs, creating blind spots |
-| `aws cloudtrail update-trail` | Can redirect or modify logging configuration |
-| `aws config delete-configuration-recorder` | Disables AWS Config recording of resource changes |
-| `aws guardduty delete-detector` | Disables threat detection capabilities |
+| Blocked Command                            | Security Risk                                        |
+| ------------------------------------------ | ---------------------------------------------------- |
+| `aws cloudtrail delete-trail`              | Removes audit trail of AWS activity                  |
+| `aws cloudtrail stop-logging`              | Stops collecting activity logs, creating blind spots |
+| `aws cloudtrail update-trail`              | Can redirect or modify logging configuration         |
+| `aws config delete-configuration-recorder` | Disables AWS Config recording of resource changes    |
+| `aws guardduty delete-detector`            | Disables threat detection capabilities               |
 
 #### 3. Sensitive Data Access and Protection
 
-| Blocked Command | Security Risk |
-|-----------------|---------------|
-| `aws secretsmanager put-secret-value` | Modifies sensitive credentials |
-| `aws secretsmanager delete-secret` | Removes sensitive credentials |
-| `aws kms schedule-key-deletion` | Schedules deletion of encryption keys, risking data loss |
-| `aws kms disable-key` | Disables encryption keys, potentially exposing data |
-| `aws s3api put-bucket-policy` | Can create public S3 buckets, exposing data |
-| `aws s3api delete-bucket-policy` | Removes protective policies from buckets |
+| Blocked Command                       | Security Risk                                            |
+| ------------------------------------- | -------------------------------------------------------- |
+| `aws secretsmanager put-secret-value` | Modifies sensitive credentials                           |
+| `aws secretsmanager delete-secret`    | Removes sensitive credentials                            |
+| `aws kms schedule-key-deletion`       | Schedules deletion of encryption keys, risking data loss |
+| `aws kms disable-key`                 | Disables encryption keys, potentially exposing data      |
+| `aws s3api put-bucket-policy`         | Can create public S3 buckets, exposing data              |
+| `aws s3api delete-bucket-policy`      | Removes protective policies from buckets                 |
 
 #### 4. Network Security Risks
 
-| Blocked Command | Security Risk |
-|-----------------|---------------|
-| `aws ec2 authorize-security-group-ingress` | Opens inbound network access, potential exposure |
-| `aws ec2 authorize-security-group-egress` | Opens outbound network access, potential data exfiltration |
-| `aws ec2 modify-instance-attribute` | Can alter security properties of instances |
+| Blocked Command                            | Security Risk                                              |
+| ------------------------------------------ | ---------------------------------------------------------- |
+| `aws ec2 authorize-security-group-ingress` | Opens inbound network access, potential exposure           |
+| `aws ec2 authorize-security-group-egress`  | Opens outbound network access, potential data exfiltration |
+| `aws ec2 modify-instance-attribute`        | Can alter security properties of instances                 |
 
 Many read-only operations that match these patterns are explicitly allowed via safe patterns:
 
@@ -453,12 +449,12 @@ dangerous_commands:
     # Only block specific IAM operations for your environment
     - "aws iam create-user"
     - "aws iam attach-user-policy"
-  
+
   # Custom service restrictions for your organization
   lambda:
     - "aws lambda delete-function"
     - "aws lambda remove-permission"
-  
+
   # Prevent accidental DynamoDB table deletion
   dynamodb:
     - "aws dynamodb delete-table"
@@ -469,12 +465,12 @@ safe_patterns:
   general:
     - "--help"
     - "--dry-run"
-  
+
   # Allow read operations on IAM
   iam:
     - "aws iam get-"
     - "aws iam list-"
-  
+
   # Allow specific Lambda operations
   lambda:
     - "aws lambda list-functions"
@@ -487,18 +483,18 @@ regex_rules:
     - pattern: "aws .* --profile\\s+root"
       description: "Prevent use of root profile"
       error_message: "Using the root profile is not allowed for security reasons"
-  
+
   iam:
     # Block creation of admin users
     - pattern: "aws iam create-user.*--user-name\\s+.*admin.*"
       description: "Prevent creation of admin users"
       error_message: "Creating users with 'admin' in the name is restricted"
-    
+
     # Prevent wildcards in IAM policies
     - pattern: "aws iam create-policy.*\"Effect\":\\s*\"Allow\".*\"Action\":\\s*\"\\*\".*\"Resource\":\\s*\"\\*\""
       description: "Prevent wildcards in policies"
       error_message: "Creating policies with '*' wildcards for both Action and Resource is not allowed"
-  
+
   s3:
     # Prevent public bucket policies
     - pattern: "aws s3api put-bucket-policy.*\"Effect\":\\s*\"Allow\".*\"Principal\":\\s*\"\\*\""
@@ -575,16 +571,6 @@ make format           # Format code with ruff
 
 For a complete list of available commands, run `make help`.
 
-### Code Coverage
-
-The project includes configuration for [Codecov](https://codecov.io) to track code coverage metrics. The configuration is in the `codecov.yml` file, which:
-
-- Sets a target coverage threshold of 80%
-- Excludes test files, setup files, and documentation from coverage reports
-- Configures PR comments and status checks
-
-Coverage reports are automatically generated during CI/CD runs and uploaded to Codecov.
-
 ### Integration Testing
 
 Integration tests verify AWS MCP Server works correctly with actual AWS resources. To run them:
@@ -595,15 +581,17 @@ Integration tests verify AWS MCP Server works correctly with actual AWS resource
    - Ensure your AWS credentials are configured
 
 2. **Run integration tests**:
+
    ```bash
    # Run all tests including integration tests
    make test-all
-   
+
    # Run only integration tests
    make test-integration
    ```
 
 Or you can run the pytest commands directly:
+
 ```bash
 # Run all tests including integration tests
 pytest --run-integration
@@ -621,38 +609,35 @@ pytest --run-integration -m integration
 
 ## Why Deploy with Docker
 
-Deploying AWS MCP Server via Docker is the recommended approach, offering significant security and reliability advantages that form the core of the tool's secure usage pattern:
+Docker is the **recommended deployment method** because it provides stronger isolation than OS-level sandboxing:
 
-### Security Benefits
+| Aspect                | Docker                    | Sandbox (Landlock/Seatbelt) |
+| --------------------- | ------------------------- | --------------------------- |
+| Filesystem isolation  | Full container filesystem | Path-based restrictions     |
+| Process isolation     | Separate namespaces       | Same user space             |
+| Network isolation     | Configurable              | Network access required     |
+| Credential protection | Read-only mount (`:ro`)   | Read access to `~/.aws`     |
+| Cleanup               | Container removed on exit | No automatic cleanup        |
 
-- **Isolation (Primary Mitigation):** The Docker container provides essential filesystem and process isolation. AWS CLI commands and piped Unix utilities run in a contained environment. Accidental or misused commands affecting the filesystem are limited to the container, **protecting your host machine**.
-- **Controlled Credential Access:** When mounting credentials, using the `:ro` (read-only) flag limits the container's ability to modify your AWS configuration files.
-- **No Local Installation:** Avoids installing the AWS CLI and its dependencies directly on your host system.
-- **Clean Environment:** Each container run starts with a known, clean state.
+### Key Benefits
 
-### Reliability Advantages
+- **Stronger Security**: Container provides full filesystem and process isolation; destructive commands only affect container
+- **Consistent Environment**: AWS CLI, SSM plugin, jq pre-installed; no version conflicts
+- **Multi-Architecture**: Supports AMD64/x86_64 and ARM64 (Apple Silicon, Graviton)
+- **Simple Updates**: `docker pull` for new versions; pin specific versions for stability
 
-- **Consistent Configuration**: All required tools (AWS CLI, SSM plugin, jq) are pre-installed and properly configured
-- **Dependency Management**: Avoid version conflicts between tools and dependencies
-- **Cross-Platform Consistency**: Works the same way across different operating systems
-- **Complete Environment**: Includes all necessary tools for command pipes, filtering, and formatting
-
-### Other Benefits
-
-- **Multi-Architecture Support**: Runs on both Intel/AMD (x86_64) and ARM (Apple Silicon, AWS Graviton) processors
-- **Simple Updates**: Update to new versions with a single pull command
-- **No Python Environment Conflicts**: Avoids potential conflicts with other Python applications on your system
-- **Version Pinning**: Easily pin to specific versions for stability in production environments
+When running natively (without Docker), enable sandbox mode (`AWS_MCP_SANDBOX=auto`) for defense-in-depth.
 
 ## Versioning
 
 This project uses [setuptools_scm](https://github.com/pypa/setuptools_scm) to automatically determine versions based on Git tags:
 
 - **Release versions**: When a Git tag exists (e.g., `1.2.3`), the version will be exactly that tag
-- **Development versions**: For commits without tags, a development version is generated in the format: 
+- **Development versions**: For commits without tags, a development version is generated in the format:
   `<last-tag>.post<commits-since-tag>+g<commit-hash>.d<date>` (e.g., `1.2.3.post10+gb697684.d20250406`)
 
 The version is automatically included in:
+
 - Package version information
 - Docker image labels
 - Continuous integration builds
