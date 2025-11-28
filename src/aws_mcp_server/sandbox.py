@@ -86,7 +86,9 @@ class SandboxConfig:
             self.env_passthrough = self._default_env_passthrough()
         # Remove secret AWS variables if env-based credentials are disabled
         if not self.pass_aws_env:
-            self.env_passthrough = [var for var in self.env_passthrough if var not in AWS_SECRET_ENV_VARS]
+            self.env_passthrough = [
+                var for var in self.env_passthrough if var not in AWS_SECRET_ENV_VARS
+            ]
 
     @staticmethod
     def _default_read_paths() -> list[str]:
@@ -624,7 +626,9 @@ class Sandbox:
                 logger.info("Using Bubblewrap sandbox backend")
                 return bwrap
 
-            logger.warning("No Linux sandbox backend available, running without isolation")
+            logger.warning(
+                "No Linux sandbox backend available, running without isolation"
+            )
 
         elif system == "Darwin":
             seatbelt = MacOSSeatbeltBackend()
@@ -758,8 +762,13 @@ async def execute_sandboxed_async(
     loop = asyncio.get_running_loop()
 
     def run_sandboxed():
-        result = get_sandbox().execute(cmd, input_data=input_data, timeout=timeout)
-        return result.stdout, result.stderr, result.returncode
+        try:
+            result = get_sandbox().execute(cmd, input_data=input_data, timeout=timeout)
+            return result.stdout, result.stderr, result.returncode
+        except subprocess.TimeoutExpired as e:
+            raise asyncio.TimeoutError(
+                f"Command timed out after {e.timeout} seconds"
+            ) from e
 
     # Run in thread pool to avoid blocking
     return await loop.run_in_executor(None, run_sandboxed)
