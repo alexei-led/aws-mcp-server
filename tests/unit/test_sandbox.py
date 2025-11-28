@@ -657,6 +657,29 @@ class TestAsyncFunctions:
                 with pytest.raises(asyncio.TimeoutError):
                     await execute_piped_sandboxed_async(commands, timeout=0.1)
 
+    @pytest.mark.asyncio
+    async def test_execute_piped_sandboxed_async_total_timeout(self):
+        """Test that timeout applies to entire pipeline, not per-stage."""
+        import time
+
+        from aws_mcp_server.sandbox import execute_piped_sandboxed_async
+
+        with patch("aws_mcp_server.config.SANDBOX_MODE", "disabled"):
+            with patch("aws_mcp_server.config.SANDBOX_CREDENTIAL_MODE", "both"):
+                reset_sandbox()
+                commands = [
+                    ["sleep", "0.15"],
+                    ["sleep", "0.15"],
+                    ["sleep", "0.15"],
+                ]
+                start = time.monotonic()
+                with pytest.raises(asyncio.TimeoutError):
+                    await execute_piped_sandboxed_async(commands, timeout=0.3)
+                elapsed = time.monotonic() - start
+                assert (
+                    elapsed < 0.5
+                ), f"Pipeline took {elapsed}s, should timeout around 0.3s"
+
 
 class TestCredentialModes:
     """Tests for different credential passing modes."""

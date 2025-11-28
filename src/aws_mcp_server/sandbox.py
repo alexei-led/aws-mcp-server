@@ -808,6 +808,7 @@ async def execute_piped_sandboxed_async(
         asyncio.TimeoutError: If command times out
     """
     import asyncio
+    import time
 
     if not commands:
         return b"", b"Empty command", 1
@@ -818,13 +819,25 @@ async def execute_piped_sandboxed_async(
         sandbox = get_sandbox()
         current_input: bytes | None = None
         stderr_parts: list[bytes] = []
+        start_time = time.monotonic() if timeout else None
 
         for i, cmd in enumerate(commands):
+            # Calculate remaining time for this stage
+            stage_timeout: float | None = None
+            if timeout is not None:
+                elapsed = time.monotonic() - start_time
+                remaining = timeout - elapsed
+                if remaining <= 0:
+                    raise asyncio.TimeoutError(
+                        f"Pipeline timed out after {timeout} seconds (at stage {i})"
+                    )
+                stage_timeout = remaining
+
             try:
                 result = sandbox.execute(
                     cmd,
                     input_data=current_input,
-                    timeout=timeout,
+                    timeout=stage_timeout,
                 )
                 if result.stderr:
                     stderr_parts.append(result.stderr)
@@ -835,7 +848,10 @@ async def execute_piped_sandboxed_async(
                 current_input = result.stdout
 
             except subprocess.TimeoutExpired as e:
-                raise asyncio.TimeoutError(f"Command timed out at stage {i}") from e
+                elapsed = time.monotonic() - start_time if start_time else timeout
+                raise asyncio.TimeoutError(
+                    f"Pipeline timed out after {elapsed:.1f} seconds (at stage {i})"
+                ) from e
 
         return current_input or b"", b"\n".join(stderr_parts), 0
 
