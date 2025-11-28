@@ -1,48 +1,42 @@
 name: PR Validation
-
 on:
   pull_request:
     paths-ignore:
-      - 'deploy/**'
+      - deploy/**
       - '*.md'
-
 jobs:
   test:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[ci skip]') && !contains(github.event.head_commit.message, '[skip ci]')"
+    if: '!contains(github.event.head_commit.message, ''[ci skip]'') && !contains(github.event.head_commit.message, ''[skip ci]'')'
     strategy:
       matrix:
-        python-version: ["3.13"]
-
+        python-version:
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "pip"
-
+          cache: pip
       - name: Install uv
         run: |
           # Install uv using the official installation method
           curl -LsSf https://astral.sh/uv/install.sh | sh
 
           # Add uv to PATH
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Install dependencies using uv
         run: |
-          # Install dependencies using uv with the lock file and the --system flag
-          uv pip install --system -e ".[dev]"
-
+          # Install dependencies from lock file for reproducible builds
+          uv pip sync --system uv.lock
+          # Install the package in editable mode
+          uv pip install --system -e .
       - name: Lint
         run: make lint
-        continue-on-error: true  # Display errors but don't fail build for lint warnings
-
+        continue-on-error: true # Display errors but don't fail build for lint warnings
       - name: Test
         run: make test
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -50,40 +44,34 @@ jobs:
           file: ./coverage.xml
           fail_ci_if_error: false
           verbose: true
-
   build:
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Get current date
         id: date
-        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
       - name: Install setuptools_scm
         run: pip install setuptools_scm
-        
       - name: Generate version file and get version info
         id: version
         run: |
           # Generate version file automatically
           python -m setuptools_scm
-          
+
           # Get the raw version from setuptools_scm
           VERSION=$(python -m setuptools_scm)
-          
+
           # Make version Docker-compatible (replace + with -)
           DOCKER_VERSION=$(echo "$VERSION" | tr '+' '-')
-          
+
           # Update the version in pyproject.toml
           sed -i "s|fallback_version=\"0.0.0-dev0\"|fallback_version=\"${VERSION}\"|g" pyproject.toml
-          
-          echo "version=$DOCKER_VERSION" >> $GITHUB_OUTPUT
 
+          echo "version=$DOCKER_VERSION" >> "$GITHUB_OUTPUT"
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
