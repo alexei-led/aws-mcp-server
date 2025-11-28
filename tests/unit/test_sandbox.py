@@ -167,6 +167,18 @@ class TestLinuxLandlockBackend:
         with pytest.raises(SandboxError, match="Landlock is not available"):
             backend.execute(["echo", "hello"], config)
 
+    def test_execute_accepts_sandbox_mode_parameter(self):
+        """Test that execute accepts sandbox_mode parameter."""
+        backend = LinuxLandlockBackend()
+        backend._available = False
+        config = SandboxConfig()
+
+        with pytest.raises(SandboxError):
+            backend.execute(["echo", "hello"], config, sandbox_mode="auto")
+
+        with pytest.raises(SandboxError):
+            backend.execute(["echo", "hello"], config, sandbox_mode="required")
+
     @pytest.mark.skipif(not IS_LINUX, reason="Landlock only available on Linux")
     def test_execute_on_linux(self):
         """Test actual Landlock execution on Linux."""
@@ -470,6 +482,40 @@ class TestSandbox:
 
         mock_backend.execute.assert_called_once()
         assert result.returncode == 0
+
+    def test_execute_passes_sandbox_mode_to_backend(self):
+        """Test that execute passes sandbox_mode to the backend."""
+        sandbox = Sandbox(sandbox_mode="required")
+        mock_backend = MagicMock()
+        mock_backend.execute.return_value = subprocess.CompletedProcess(
+            args=["echo", "hello"],
+            returncode=0,
+            stdout=b"hello",
+            stderr=b"",
+        )
+        sandbox._backend = mock_backend
+
+        sandbox.execute(["echo", "hello"])
+
+        call_kwargs = mock_backend.execute.call_args[1]
+        assert call_kwargs["sandbox_mode"] == "required"
+
+    def test_execute_passes_auto_mode_by_default(self):
+        """Test that execute passes auto mode by default."""
+        sandbox = Sandbox()
+        mock_backend = MagicMock()
+        mock_backend.execute.return_value = subprocess.CompletedProcess(
+            args=["echo", "hello"],
+            returncode=0,
+            stdout=b"hello",
+            stderr=b"",
+        )
+        sandbox._backend = mock_backend
+
+        sandbox.execute(["echo", "hello"])
+
+        call_kwargs = mock_backend.execute.call_args[1]
+        assert call_kwargs["sandbox_mode"] == "auto"
 
 
 class TestModuleFunctions:

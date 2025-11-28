@@ -168,6 +168,7 @@ class SandboxBackend(ABC):
         *,
         input_data: bytes | None = None,
         timeout: float | None = None,
+        sandbox_mode: str = "auto",
     ) -> subprocess.CompletedProcess[bytes]:
         """Execute a command in the sandbox.
 
@@ -176,6 +177,7 @@ class SandboxBackend(ABC):
             config: Sandbox configuration
             input_data: Optional input to pass to the process stdin
             timeout: Optional timeout in seconds
+            sandbox_mode: One of "auto", "disabled", or "required"
 
         Returns:
             CompletedProcess with stdout and stderr
@@ -256,6 +258,7 @@ class LinuxLandlockBackend(SandboxBackend):
         *,
         input_data: bytes | None = None,
         timeout: float | None = None,
+        sandbox_mode: str = "auto",
     ) -> subprocess.CompletedProcess[bytes]:
         """Execute command with Landlock restrictions."""
         if not self.is_available():
@@ -288,8 +291,14 @@ class LinuxLandlockBackend(SandboxBackend):
                 # Apply the ruleset
                 rs.apply()
             except Exception as e:
-                # Log but don't fail - allow execution without sandbox
-                logger.warning(f"Failed to apply Landlock sandbox: {e}")
+                if sandbox_mode == "required":
+                    raise RuntimeError(
+                        f"Sandboxing required but Landlock failed: {e}"
+                    ) from e
+                logger.warning(
+                    f"Landlock sandbox failed (mode={sandbox_mode}), "
+                    f"continuing unsandboxed: {e}"
+                )
 
         env = self._build_env(config)
 
@@ -388,6 +397,7 @@ class LinuxBubblewrapBackend(SandboxBackend):
         *,
         input_data: bytes | None = None,
         timeout: float | None = None,
+        sandbox_mode: str = "auto",
     ) -> subprocess.CompletedProcess[bytes]:
         """Execute command in bubblewrap sandbox."""
         if not self.is_available():
@@ -528,6 +538,7 @@ class MacOSSeatbeltBackend(SandboxBackend):
         *,
         input_data: bytes | None = None,
         timeout: float | None = None,
+        sandbox_mode: str = "auto",
     ) -> subprocess.CompletedProcess[bytes]:
         """Execute command with Seatbelt sandbox."""
         if not self.is_available():
@@ -570,6 +581,7 @@ class NoOpBackend(SandboxBackend):
         *,
         input_data: bytes | None = None,
         timeout: float | None = None,
+        sandbox_mode: str = "auto",
     ) -> subprocess.CompletedProcess[bytes]:
         """Execute command without sandboxing."""
         env = self._build_env(config)
@@ -680,6 +692,7 @@ class Sandbox:
             self.config,
             input_data=input_data,
             timeout=timeout,
+            sandbox_mode=self.sandbox_mode,
         )
 
     def is_sandboxed(self) -> bool:
