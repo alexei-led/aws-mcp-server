@@ -20,15 +20,30 @@ def get_aws_profiles() -> List[str]:
     """Get available AWS profiles from config and credentials files.
 
     Reads the AWS config and credentials files to extract all available profiles.
+    Supports custom credential paths via AWS_CONFIG_FILE and AWS_SHARED_CREDENTIALS_FILE
+    environment variables.
 
     Returns:
         List of profile names
     """
     profiles = ["default"]  # default profile always exists
-    config_paths = [
-        os.path.expanduser("~/.aws/config"),
-        os.path.expanduser("~/.aws/credentials"),
-    ]
+
+    # Build config paths, respecting custom locations via environment variables
+    config_paths = []
+
+    # Config file (profiles defined as [profile xyz])
+    custom_config = os.environ.get("AWS_CONFIG_FILE")
+    if custom_config:
+        config_paths.append(custom_config)
+    else:
+        config_paths.append(os.path.expanduser("~/.aws/config"))
+
+    # Credentials file (profiles defined as [xyz])
+    custom_creds = os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
+    if custom_creds:
+        config_paths.append(custom_creds)
+    else:
+        config_paths.append(os.path.expanduser("~/.aws/credentials"))
 
     try:
         for config_path in config_paths:
@@ -93,12 +108,30 @@ def get_aws_regions() -> List[Dict[str, str]]:
             {"RegionName": "us-west-2", "RegionDescription": "US West (Oregon)"},
             {"RegionName": "eu-west-1", "RegionDescription": "EU West (Ireland)"},
             {"RegionName": "eu-west-2", "RegionDescription": "EU West (London)"},
-            {"RegionName": "eu-central-1", "RegionDescription": "EU Central (Frankfurt)"},
-            {"RegionName": "ap-northeast-1", "RegionDescription": "Asia Pacific (Tokyo)"},
-            {"RegionName": "ap-northeast-2", "RegionDescription": "Asia Pacific (Seoul)"},
-            {"RegionName": "ap-southeast-1", "RegionDescription": "Asia Pacific (Singapore)"},
-            {"RegionName": "ap-southeast-2", "RegionDescription": "Asia Pacific (Sydney)"},
-            {"RegionName": "sa-east-1", "RegionDescription": "South America (São Paulo)"},
+            {
+                "RegionName": "eu-central-1",
+                "RegionDescription": "EU Central (Frankfurt)",
+            },
+            {
+                "RegionName": "ap-northeast-1",
+                "RegionDescription": "Asia Pacific (Tokyo)",
+            },
+            {
+                "RegionName": "ap-northeast-2",
+                "RegionDescription": "Asia Pacific (Seoul)",
+            },
+            {
+                "RegionName": "ap-southeast-1",
+                "RegionDescription": "Asia Pacific (Singapore)",
+            },
+            {
+                "RegionName": "ap-southeast-2",
+                "RegionDescription": "Asia Pacific (Sydney)",
+            },
+            {
+                "RegionName": "sa-east-1",
+                "RegionDescription": "South America (São Paulo)",
+            },
         ]
     except Exception as e:
         logger.warning(f"Unexpected error fetching AWS regions: {e}")
@@ -184,7 +217,12 @@ def get_region_available_services(session: boto3.session.Session, region_code: s
                     else:
                         boto3_service_id = service_code.lower()
 
-                    available_services.append({"id": boto3_service_id, "name": service.get("ServiceName", service_code)})
+                    available_services.append(
+                        {
+                            "id": boto3_service_id,
+                            "name": service.get("ServiceName", service_code),
+                        }
+                    )
 
             # Check if there are more services to fetch
             next_token = response.get("NextToken")
@@ -225,7 +263,10 @@ def get_region_available_services(session: boto3.session.Session, region_code: s
                 # If it succeeds, the service is available
                 session.client(service_name, region_name=region_code)
                 available_services.append(
-                    {"id": service_name, "name": service_name.upper() if service_name in ["ec2", "s3"] else service_name.replace("-", " ").title()}
+                    {
+                        "id": service_name,
+                        "name": (service_name.upper() if service_name in ["ec2", "s3"] else service_name.replace("-", " ").title()),
+                    }
                 )
             except Exception:
                 # If client creation fails, the service might not be available in this region
@@ -245,28 +286,84 @@ def _get_region_geographic_location(region_code: str) -> Dict[str, str]:
     """
     # Map of region codes to geographic information
     geo_map = {
-        "us-east-1": {"continent": "North America", "country": "United States", "city": "Ashburn, Virginia"},
-        "us-east-2": {"continent": "North America", "country": "United States", "city": "Columbus, Ohio"},
-        "us-west-1": {"continent": "North America", "country": "United States", "city": "San Francisco, California"},
-        "us-west-2": {"continent": "North America", "country": "United States", "city": "Portland, Oregon"},
-        "af-south-1": {"continent": "Africa", "country": "South Africa", "city": "Cape Town"},
+        "us-east-1": {
+            "continent": "North America",
+            "country": "United States",
+            "city": "Ashburn, Virginia",
+        },
+        "us-east-2": {
+            "continent": "North America",
+            "country": "United States",
+            "city": "Columbus, Ohio",
+        },
+        "us-west-1": {
+            "continent": "North America",
+            "country": "United States",
+            "city": "San Francisco, California",
+        },
+        "us-west-2": {
+            "continent": "North America",
+            "country": "United States",
+            "city": "Portland, Oregon",
+        },
+        "af-south-1": {
+            "continent": "Africa",
+            "country": "South Africa",
+            "city": "Cape Town",
+        },
         "ap-east-1": {"continent": "Asia", "country": "China", "city": "Hong Kong"},
         "ap-south-1": {"continent": "Asia", "country": "India", "city": "Mumbai"},
         "ap-northeast-1": {"continent": "Asia", "country": "Japan", "city": "Tokyo"},
-        "ap-northeast-2": {"continent": "Asia", "country": "South Korea", "city": "Seoul"},
+        "ap-northeast-2": {
+            "continent": "Asia",
+            "country": "South Korea",
+            "city": "Seoul",
+        },
         "ap-northeast-3": {"continent": "Asia", "country": "Japan", "city": "Osaka"},
-        "ap-southeast-1": {"continent": "Asia", "country": "Singapore", "city": "Singapore"},
-        "ap-southeast-2": {"continent": "Oceania", "country": "Australia", "city": "Sydney"},
-        "ap-southeast-3": {"continent": "Asia", "country": "Indonesia", "city": "Jakarta"},
-        "ca-central-1": {"continent": "North America", "country": "Canada", "city": "Montreal"},
-        "eu-central-1": {"continent": "Europe", "country": "Germany", "city": "Frankfurt"},
+        "ap-southeast-1": {
+            "continent": "Asia",
+            "country": "Singapore",
+            "city": "Singapore",
+        },
+        "ap-southeast-2": {
+            "continent": "Oceania",
+            "country": "Australia",
+            "city": "Sydney",
+        },
+        "ap-southeast-3": {
+            "continent": "Asia",
+            "country": "Indonesia",
+            "city": "Jakarta",
+        },
+        "ca-central-1": {
+            "continent": "North America",
+            "country": "Canada",
+            "city": "Montreal",
+        },
+        "eu-central-1": {
+            "continent": "Europe",
+            "country": "Germany",
+            "city": "Frankfurt",
+        },
         "eu-west-1": {"continent": "Europe", "country": "Ireland", "city": "Dublin"},
-        "eu-west-2": {"continent": "Europe", "country": "United Kingdom", "city": "London"},
+        "eu-west-2": {
+            "continent": "Europe",
+            "country": "United Kingdom",
+            "city": "London",
+        },
         "eu-west-3": {"continent": "Europe", "country": "France", "city": "Paris"},
         "eu-north-1": {"continent": "Europe", "country": "Sweden", "city": "Stockholm"},
         "eu-south-1": {"continent": "Europe", "country": "Italy", "city": "Milan"},
-        "me-south-1": {"continent": "Middle East", "country": "Bahrain", "city": "Manama"},
-        "sa-east-1": {"continent": "South America", "country": "Brazil", "city": "São Paulo"},
+        "me-south-1": {
+            "continent": "Middle East",
+            "country": "Bahrain",
+            "city": "Manama",
+        },
+        "sa-east-1": {
+            "continent": "South America",
+            "country": "Brazil",
+            "city": "São Paulo",
+        },
     }
 
     # Return default information if region not found
@@ -453,7 +550,12 @@ def register_resources(mcp):
     """
     logger.info("Registering AWS resources")
 
-    @mcp.resource(name="aws_profiles", description="Get available AWS profiles", uri="aws://config/profiles", mime_type="application/json")
+    @mcp.resource(
+        name="aws_profiles",
+        description="Get available AWS profiles",
+        uri="aws://config/profiles",
+        mime_type="application/json",
+    )
     async def aws_profiles() -> dict:
         """Get available AWS profiles.
 
@@ -467,7 +569,12 @@ def register_resources(mcp):
         current_profile = os.environ.get("AWS_PROFILE", "default")
         return {"profiles": [{"name": profile, "is_current": profile == current_profile} for profile in profiles]}
 
-    @mcp.resource(name="aws_regions", description="Get available AWS regions", uri="aws://config/regions", mime_type="application/json")
+    @mcp.resource(
+        name="aws_regions",
+        description="Get available AWS regions",
+        uri="aws://config/regions",
+        mime_type="application/json",
+    )
     async def aws_regions() -> dict:
         """Get available AWS regions.
 
@@ -512,7 +619,12 @@ def register_resources(mcp):
         logger.info(f"Getting detailed information for region: {region}")
         return get_region_details(region)
 
-    @mcp.resource(name="aws_environment", description="Get AWS environment information", uri="aws://config/environment", mime_type="application/json")
+    @mcp.resource(
+        name="aws_environment",
+        description="Get AWS environment information",
+        uri="aws://config/environment",
+        mime_type="application/json",
+    )
     async def aws_environment() -> dict:
         """Get AWS environment information.
 
@@ -524,7 +636,12 @@ def register_resources(mcp):
         """
         return get_aws_environment()
 
-    @mcp.resource(name="aws_account", description="Get AWS account information", uri="aws://config/account", mime_type="application/json")
+    @mcp.resource(
+        name="aws_account",
+        description="Get AWS account information",
+        uri="aws://config/account",
+        mime_type="application/json",
+    )
     async def aws_account() -> dict:
         """Get AWS account information.
 

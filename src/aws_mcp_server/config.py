@@ -11,6 +11,9 @@ Environment variables:
 - AWS_DEFAULT_REGION: Alternative to AWS_REGION (used if AWS_REGION not set)
 - AWS_MCP_SECURITY_MODE: Security mode for command validation (strict or permissive, default: strict)
 - AWS_MCP_SECURITY_CONFIG: Path to custom security configuration file
+- AWS_MCP_SANDBOX: Sandbox mode ("auto", "disabled", "required", default: "auto")
+- AWS_MCP_SANDBOX_CREDENTIALS: How to pass AWS credentials to sandbox
+  ("env", "aws_config", "both", default: "both")
 """
 
 import os
@@ -31,14 +34,33 @@ AWS_REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "
 SECURITY_MODE = os.environ.get("AWS_MCP_SECURITY_MODE", "strict")
 SECURITY_CONFIG_PATH = os.environ.get("AWS_MCP_SECURITY_CONFIG", "")
 
+# Sandbox settings
+# "auto" - use sandbox if available, fall back to no sandbox
+# "disabled" - never use sandbox
+# "required" - fail if sandbox is not available
+SANDBOX_MODE = os.environ.get("AWS_MCP_SANDBOX", "auto").lower()
+# "env" - pass AWS credentials via environment variables only
+# "aws_config" - allow read access to ~/.aws directory only
+# "both" - both environment variables and ~/.aws access (default)
+SANDBOX_CREDENTIAL_MODE = os.environ.get("AWS_MCP_SANDBOX_CREDENTIALS", "both").lower()
+
 # Instructions displayed to client during initialization
 INSTRUCTIONS = """
-AWS MCP Server provides a comprehensive interface to the AWS CLI with best practices guidance.
-- Use the describe_command tool to get AWS CLI documentation
-- Use the execute_command tool to run AWS CLI commands
-- The execute_command tool supports Unix pipes (|) to filter or transform AWS CLI output:
-  Example: aws s3api list-buckets --query 'Buckets[*].Name' --output text | sort
-- Access AWS environment resources for context:
+AWS MCP Server provides access to the entire AWS CLI through two tools.
+
+RECOMMENDED WORKFLOW:
+1. Use aws_cli_help to learn command syntax before executing
+2. Use aws_cli_pipeline to execute commands, optionally with Unix pipes
+
+TOOLS:
+- aws_cli_help: Get documentation for any AWS service or command
+  Example: aws_cli_help(service="s3", command="cp") -> shows s3 cp usage
+
+- aws_cli_pipeline: Execute AWS CLI commands with optional Unix pipes
+  Example: aws s3 ls
+  Example: aws ec2 describe-instances | jq '.Reservations[].Instances[].InstanceId'
+
+AWS RESOURCES (read these for context):
   - aws://config/profiles: List available AWS profiles and active profile
   - aws://config/regions: List available AWS regions and active region
   - aws://config/regions/{region}: Get detailed information about a specific region 

@@ -1,7 +1,8 @@
 """Utility for executing AWS CLI commands.
 
 This module provides functions to validate and execute AWS CLI commands
-with proper error handling, timeouts, and output processing.
+with proper error handling, timeouts, and output processing. Commands are
+executed in a sandbox environment when available for additional security.
 """
 
 import asyncio
@@ -10,13 +11,14 @@ import shlex
 from typing import TypedDict
 
 from aws_mcp_server.config import DEFAULT_TIMEOUT, MAX_OUTPUT_SIZE
-from aws_mcp_server.security import validate_aws_command, validate_pipe_command
-from aws_mcp_server.tools import (
-    CommandResult,
-    execute_piped_command,
-    is_pipe_command,
-    split_pipe_command,
+from aws_mcp_server.sandbox import (
+    SandboxError,
+    execute_piped_sandboxed_async,
+    execute_sandboxed_async,
+    sandbox_available,
 )
+from aws_mcp_server.security import validate_aws_command, validate_pipe_command
+from aws_mcp_server.tools import CommandResult, is_pipe_command, split_pipe_command
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -100,7 +102,8 @@ async def execute_aws_command(command: str, timeout: int | None = None) -> Comma
     """Execute an AWS CLI command and return the result.
 
     Validates, executes, and processes the results of an AWS CLI command,
-    handling timeouts and output size limits.
+    handling timeouts and output size limits. Commands are executed in a
+    sandbox environment when available for additional security.
 
     Args:
         command: The AWS CLI command to execute (must start with 'aws')
@@ -133,35 +136,24 @@ async def execute_aws_command(command: str, timeout: int | None = None) -> Comma
     # Split by spaces and check for EC2 service specifically
     cmd_parts = shlex.split(command)
     is_ec2_command = len(cmd_parts) >= 2 and cmd_parts[0] == "aws" and cmd_parts[1] == "ec2"
-    has_region = "--region" in cmd_parts
+    has_region = any(part.startswith("--region") for part in cmd_parts)
 
     # If it's an EC2 command and doesn't have --region
     if is_ec2_command and not has_region:
         # Add the region parameter
         command = f"{command} --region {AWS_REGION}"
+        cmd_parts = shlex.split(command)
         logger.debug(f"Added region to command: {command}")
 
-    logger.debug(f"Executing AWS command: {command}")
-
     try:
-        # Split command safely for exec
-        cmd_parts = shlex.split(command)
+        logger.debug(f"Executing AWS command: {command} (sandbox: {sandbox_available()})")
 
-        # Create subprocess using exec (safer than shell=True)
-        process = await asyncio.create_subprocess_exec(*cmd_parts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-
-        # Wait for the process to complete with timeout
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout)
-            logger.debug(f"Command completed with return code: {process.returncode}")
-        except asyncio.TimeoutError as timeout_error:
-            logger.warning(f"Command timed out after {timeout} seconds: {command}")
-            try:
-                # process.kill() is synchronous, not a coroutine
-                process.kill()
-            except Exception as e:
-                logger.error(f"Error killing process: {e}")
-            raise CommandExecutionError(f"Command timed out after {timeout} seconds") from timeout_error
+        # Execute in sandbox
+        stdout, stderr, returncode = await execute_sandboxed_async(
+            cmd_parts,
+            timeout=float(timeout),
+        )
+        logger.debug(f"Command completed with return code: {returncode}")
 
         # Process output
         stdout_str = stdout.decode("utf-8", errors="replace")
@@ -172,16 +164,29 @@ async def execute_aws_command(command: str, timeout: int | None = None) -> Comma
             logger.info(f"Output truncated from {len(stdout_str)} to {MAX_OUTPUT_SIZE} characters")
             stdout_str = stdout_str[:MAX_OUTPUT_SIZE] + "\n... (output truncated)"
 
-        if process.returncode != 0:
-            logger.warning(f"Command failed with return code {process.returncode}: {command}")
+        if returncode != 0:
+            logger.warning(f"Command failed with return code {returncode}: {command}")
             logger.debug(f"Command error output: {stderr_str}")
 
             if is_auth_error(stderr_str):
-                return CommandResult(status="error", output=f"Authentication error: {stderr_str}\nPlease check your AWS credentials.")
+                return CommandResult(
+                    status="error",
+                    output=f"Authentication error: {stderr_str}\nPlease check your AWS credentials.",
+                )
 
-            return CommandResult(status="error", output=stderr_str or "Command failed with no error output")
+            return CommandResult(
+                status="error",
+                output=stderr_str or "Command failed with no error output",
+            )
 
         return CommandResult(status="success", output=stdout_str)
+
+    except asyncio.TimeoutError as timeout_error:
+        logger.warning(f"Command timed out after {timeout} seconds: {command}")
+        raise CommandExecutionError(f"Command timed out after {timeout} seconds") from timeout_error
+    except SandboxError as e:
+        logger.error(f"Sandbox error: {e}")
+        raise CommandExecutionError(f"Sandbox error: {str(e)}") from e
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -193,7 +198,8 @@ async def execute_pipe_command(pipe_command: str, timeout: int | None = None) ->
 
     Validates and executes a piped command where output is fed into subsequent commands.
     The first command must be an AWS CLI command, and subsequent commands must be
-    allowed Unix utilities.
+    allowed Unix utilities. Commands are executed in a sandbox environment when
+    available for additional security.
 
     Args:
         pipe_command: The piped command to execute
@@ -214,6 +220,10 @@ async def execute_pipe_command(pipe_command: str, timeout: int | None = None) ->
     except CommandValidationError as e:
         raise CommandValidationError(f"Invalid pipe command: {str(e)}") from e
 
+    # Set timeout
+    if timeout is None:
+        timeout = DEFAULT_TIMEOUT
+
     # Check if the first command in the pipe is an EC2 command and needs a region
     from aws_mcp_server.config import AWS_REGION
 
@@ -222,20 +232,58 @@ async def execute_pipe_command(pipe_command: str, timeout: int | None = None) ->
         # Split first command by spaces to check for EC2 service specifically
         first_cmd_parts = shlex.split(commands[0])
         is_ec2_command = len(first_cmd_parts) >= 2 and first_cmd_parts[0] == "aws" and first_cmd_parts[1] == "ec2"
-        has_region = "--region" in first_cmd_parts
+        has_region = any(part.startswith("--region") for part in first_cmd_parts)
 
         if is_ec2_command and not has_region:
             # Add the region parameter to the first command
             commands[0] = f"{commands[0]} --region {AWS_REGION}"
-            # Rebuild the pipe command
-            pipe_command = " | ".join(commands)
-            logger.debug(f"Added region to piped command: {pipe_command}")
-
-    logger.debug(f"Executing piped command: {pipe_command}")
+            logger.debug(f"Added region to first piped command: {commands[0]}")
 
     try:
-        # Execute the piped command using our tools module
-        return await execute_piped_command(pipe_command, timeout)
+        logger.debug(f"Executing piped command: {pipe_command} (sandbox: {sandbox_available()})")
+
+        # Convert commands to list of command parts
+        command_parts_list = [shlex.split(cmd) for cmd in commands]
+
+        # Execute the piped command in sandbox
+        stdout, stderr, returncode = await execute_piped_sandboxed_async(
+            command_parts_list,
+            timeout=float(timeout),
+        )
+        logger.debug(f"Piped command completed with return code: {returncode}")
+
+        # Process output
+        stdout_str = stdout.decode("utf-8", errors="replace")
+        stderr_str = stderr.decode("utf-8", errors="replace")
+
+        # Truncate output if necessary
+        if len(stdout_str) > MAX_OUTPUT_SIZE:
+            logger.info(f"Output truncated from {len(stdout_str)} to {MAX_OUTPUT_SIZE} characters")
+            stdout_str = stdout_str[:MAX_OUTPUT_SIZE] + "\n... (output truncated)"
+
+        if returncode != 0:
+            logger.warning(f"Piped command failed with return code {returncode}: {pipe_command}")
+            logger.debug(f"Command error output: {stderr_str}")
+
+            if is_auth_error(stderr_str):
+                return CommandResult(
+                    status="error",
+                    output=f"Authentication error: {stderr_str}\nPlease check your AWS credentials.",
+                )
+
+            return CommandResult(
+                status="error",
+                output=stderr_str or "Command failed with no error output",
+            )
+
+        return CommandResult(status="success", output=stdout_str)
+
+    except asyncio.TimeoutError as timeout_error:
+        logger.warning(f"Piped command timed out after {timeout} seconds: {pipe_command}")
+        raise CommandExecutionError(f"Command timed out after {timeout} seconds") from timeout_error
+    except SandboxError as e:
+        logger.error(f"Sandbox error: {e}")
+        raise CommandExecutionError(f"Sandbox error: {str(e)}") from e
     except Exception as e:
         raise CommandExecutionError(f"Failed to execute piped command: {str(e)}") from e
 

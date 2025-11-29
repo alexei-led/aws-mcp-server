@@ -3,21 +3,26 @@
 ## Build & Test Commands
 
 ### Using uv (recommended)
+
 - Install dependencies: `uv pip install --system -e .`
 - Install dev dependencies: `uv pip install --system -e ".[dev]"`
 - Update lock file: `uv pip compile --system pyproject.toml -o uv.lock`
 - Install from lock file: `uv pip sync --system uv.lock`
 
 ### Using pip (alternative)
+
 - Install dependencies: `pip install -e .`
 - Install dev dependencies: `pip install -e ".[dev]"`
 
 ### Running the server
+
 - Run server: `python -m aws_mcp_server`
 - Run server with SSE transport: `AWS_MCP_TRANSPORT=sse python -m aws_mcp_server`
+- Run with sandbox disabled: `AWS_MCP_SANDBOX=disabled python -m aws_mcp_server`
 - Run with MCP CLI: `mcp run src/aws_mcp_server/server.py`
 
 ### Testing and linting
+
 - Run tests: `pytest`
 - Run single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Run tests with coverage: `python -m pytest --cov=src/aws_mcp_server tests/`
