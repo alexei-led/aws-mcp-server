@@ -40,7 +40,7 @@ LABEL maintainer="alexei-led" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}"
 
-# Step 1: Install system packages - keeping all original packages
+# Step 1: Install system packages (minimal set for AWS CLI operation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     curl \
@@ -52,9 +52,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tar \
     gzip \
     zip \
-    vim \
-    net-tools \
-    dnsutils \
     openssh-client \
     grep \
     sed \
