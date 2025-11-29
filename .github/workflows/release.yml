@@ -24,16 +24,12 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
-      - name: Set up Python
-        run: uv python install
       - name: Install dependencies
-        run: |
-          uv pip sync --system uv.lock
-          uv pip install --system -e .
+        run: uv sync --locked --all-extras --dev
       - name: Lint and test
         run: |
-          make lint
-          make test
+          uv run make lint
+          uv run make test
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
