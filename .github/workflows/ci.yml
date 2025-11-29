@@ -39,7 +39,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - name: Install dependencies
-        run: uv sync --locked --dev
+        run: uv sync --locked --all-extras --dev
       - name: Generate version info
         id: version
         run: |
