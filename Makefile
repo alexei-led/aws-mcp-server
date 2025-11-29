@@ -10,15 +10,15 @@ install: ## Install the package with pip
 dev-install: ## Install the package with development dependencies using pip
 	pip install -e ".[dev]"
 
-# Python related commands (with uv)
-uv-install: ## Install the package with uv
-	uv pip install --system -e .
+# Python related commands (with uv - recommended)
+uv-install: ## Install the package with uv (creates .venv)
+	uv sync --locked
 
-uv-dev-install: ## Install the package with development dependencies using uv
-	uv pip install --system -e ".[dev]"
+uv-dev-install: ## Install with dev dependencies using uv
+	uv sync --locked --all-extras --dev
 
-uv-update-lock: ## Update the uv.lock file with current dependencies
-	uv pip compile --system pyproject.toml -o uv.lock
+uv-update-lock: ## Update the uv.lock file
+	uv lock
 
 lint: ## Run linters (ruff check and format --check)
 	ruff check src/ tests/
