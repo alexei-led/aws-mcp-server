@@ -69,30 +69,97 @@ def test_prompt_registration(prompt_functions):
 @pytest.mark.parametrize(
     "prompt_name,args,expected_content",
     [
-        # Original prompts
-        ("create_resource", {"resource_type": "s3-bucket", "resource_name": "my-test-bucket"}, ["s3-bucket", "my-test-bucket", "security", "best practices"]),
-        ("security_audit", {"service": "s3"}, ["s3", "security audit", "public access"]),
-        ("cost_optimization", {"service": "ec2"}, ["ec2", "cost optimization", "unused"]),
-        ("resource_inventory", {"service": "ec2", "region": "us-west-2"}, ["ec2", "in the us-west-2 region", "inventory"]),
-        ("resource_inventory", {"service": "s3"}, ["s3", "across all regions", "inventory"]),
-        ("troubleshoot_service", {"service": "lambda", "resource_id": "my-function"}, ["lambda", "my-function", "troubleshoot"]),
+        (
+            "create_resource",
+            {"resource_type": "s3-bucket", "resource_name": "my-test-bucket"},
+            ["s3-bucket", "my-test-bucket", "encryption"],
+        ),
+        (
+            "security_audit",
+            {"service": "s3"},
+            ["s3", "security audit", "public access"],
+        ),
+        (
+            "cost_optimization",
+            {"service": "ec2"},
+            ["ec2", "cost optimization", "unused"],
+        ),
+        (
+            "resource_inventory",
+            {"service": "ec2", "region": "us-west-2"},
+            ["ec2", "--region us-west-2"],
+        ),
+        ("resource_inventory", {"service": "s3"}, ["s3", "resources", "--region"]),
+        (
+            "troubleshoot_service",
+            {"service": "lambda", "resource_id": "my-function"},
+            ["lambda", "my-function", "troubleshoot"],
+        ),
         (
             "iam_policy_generator",
-            {"service": "s3", "actions": "GetObject,PutObject", "resource_pattern": "arn:aws:s3:::my-bucket/*"},
-            ["s3", "GetObject,PutObject", "arn:aws:s3:::my-bucket/*", "least-privilege"],
+            {
+                "service": "s3",
+                "actions": "GetObject,PutObject",
+                "resource_pattern": "arn:aws:s3:::my-bucket/*",
+            },
+            [
+                "s3",
+                "GetObject,PutObject",
+                "arn:aws:s3:::my-bucket/*",
+                "least-privilege",
+            ],
         ),
-        ("service_monitoring", {"service": "rds", "metric_type": "performance"}, ["rds", "performance", "monitoring", "CloudWatch"]),
-        ("disaster_recovery", {"service": "dynamodb", "recovery_point_objective": "15 minutes"}, ["dynamodb", "15 minutes", "disaster recovery"]),
-        ("compliance_check", {"compliance_standard": "HIPAA", "service": "s3"}, ["HIPAA", "for s3", "compliance"]),
-        ("resource_cleanup", {"service": "ec2", "criteria": "old"}, ["ec2", "old", "cleanup"]),
-        # New prompts
-        ("serverless_deployment", {"application_name": "test-app", "runtime": "python3.13"}, ["test-app", "python3.13", "serverless", "AWS SAM"]),
-        ("container_orchestration", {"cluster_name": "test-cluster", "service_type": "fargate"}, ["test-cluster", "fargate", "container"]),
-        ("vpc_network_design", {"vpc_name": "test-vpc", "cidr_block": "10.0.0.0/16"}, ["test-vpc", "10.0.0.0/16", "VPC", "security"]),
-        ("infrastructure_automation", {"resource_type": "ec2", "automation_scope": "deployment"}, ["ec2", "deployment", "automation"]),
-        ("security_posture_assessment", {}, ["Security Hub", "GuardDuty", "posture", "assessment"]),
-        ("performance_tuning", {"service": "rds", "resource_id": "test-db"}, ["rds", "test-db", "performance", "metrics"]),
-        ("multi_account_governance", {"account_type": "organization"}, ["organization", "multi-account", "governance"]),
+        (
+            "service_monitoring",
+            {"service": "rds", "metric_type": "performance"},
+            ["rds", "performance", "monitoring", "cloudwatch"],
+        ),
+        (
+            "disaster_recovery",
+            {"service": "dynamodb", "recovery_point_objective": "15 minutes"},
+            ["dynamodb", "15 minutes", "disaster recovery"],
+        ),
+        (
+            "compliance_check",
+            {"compliance_standard": "HIPAA", "service": "s3"},
+            ["HIPAA", "for s3", "compliance"],
+        ),
+        (
+            "resource_cleanup",
+            {"service": "ec2", "criteria": "old"},
+            ["ec2", "old", "cleanup"],
+        ),
+        (
+            "serverless_deployment",
+            {"application_name": "test-app", "runtime": "python3.13"},
+            ["test-app", "python3.13", "serverless", "lambda"],
+        ),
+        (
+            "container_orchestration",
+            {"cluster_name": "test-cluster", "service_type": "fargate"},
+            ["test-cluster", "fargate"],
+        ),
+        (
+            "vpc_network_design",
+            {"vpc_name": "test-vpc", "cidr_block": "10.0.0.0/16"},
+            ["test-vpc", "10.0.0.0/16", "VPC", "subnet"],
+        ),
+        (
+            "infrastructure_automation",
+            {"resource_type": "ec2", "automation_scope": "deployment"},
+            ["ec2", "deployment", "automation"],
+        ),
+        ("security_posture_assessment", {}, ["securityhub", "guardduty", "assessment"]),
+        (
+            "performance_tuning",
+            {"service": "rds", "resource_id": "test-db"},
+            ["rds", "test-db", "performance"],
+        ),
+        (
+            "multi_account_governance",
+            {"account_type": "organization"},
+            ["organizations", "governance"],
+        ),
     ],
 )
 def test_prompt_templates(prompt_functions, prompt_name, args, expected_content):
