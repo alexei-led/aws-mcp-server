@@ -288,6 +288,36 @@ Docker provides stronger isolation than OS-level sandboxing:
 
 **Recommendation**: Use Docker for production deployments. Use sandbox for native Python installations where Docker is not available.
 
+## Docker Container Hardening
+
+When running in Docker, the provided `docker-compose.yml` includes security hardening:
+
+| Setting                  | Purpose                                                                    |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `read_only: true`        | Makes the container filesystem read-only, preventing malicious file writes |
+| `tmpfs` mounts           | Provides writable `/tmp` and `/app/logs` with size limits (64MB, 32MB)     |
+| `no-new-privileges:true` | Prevents processes from gaining additional privileges via setuid/setgid    |
+| `cap_drop: ALL`          | Drops all Linux capabilities - the container runs with minimal privileges  |
+| `pids_limit: 100`        | Limits process count to prevent fork bomb attacks                          |
+
+### Minimal Image
+
+The Docker image is built with only the packages necessary for AWS CLI operation:
+
+- **Included**: AWS CLI, jq, openssh-client (for EC2 connectivity), text processing tools
+- **Excluded**: Debug tools (vim, net-tools, dnsutils) to reduce attack surface
+
+### Volume Mounts
+
+AWS credentials are mounted read-only from the host:
+
+```yaml
+volumes:
+  - ~/.aws:/home/appuser/.aws:ro
+```
+
+The `:ro` flag ensures the container cannot modify your AWS configuration files.
+
 ## Best Practices
 
 1. **Use Docker deployment** for strongest isolation

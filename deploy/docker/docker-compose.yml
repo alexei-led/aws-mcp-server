@@ -7,15 +7,25 @@ services:
     # Alternatively, use the pre-built multi-arch image
     # image: ghcr.io/alexei-led/aws-mcp-server:latest
     ports:
-      - "8000:8000"
+      - 8000:8000
     volumes:
-      - ~/.aws://home/appuser/.aws:ro # Mount AWS credentials as read-only
+      - ~/.aws:/home/appuser/.aws:ro # Mount AWS credentials as read-only
     environment:
       - AWS_PROFILE=default # Specify default AWS profile
       - AWS_MCP_TIMEOUT=300 # Default timeout in seconds (5 minutes)
       - AWS_MCP_TRANSPORT=stdio # Transport protocol ("stdio" or "sse")
-      # - AWS_MCP_MAX_OUTPUT=100000  # Uncomment to set max output size
+      # - AWS_MCP_MAX_OUTPUT=100000   # Uncomment to set max output size
     restart: unless-stopped
+    # Security hardening
+    read_only: true # Read-only root filesystem
+    tmpfs:
+      - /tmp:size=64M,mode=1777 # Temporary storage with size limit
+      - /app/logs:size=32M,mode=1777 # Writable logs directory
+    security_opt:
+      - no-new-privileges:true # Prevent privilege escalation
+    cap_drop:
+      - ALL # Drop all Linux capabilities
+    pids_limit: 100 # Prevent fork bombs
 # To build multi-architecture images:
 # 1. Set up Docker buildx: docker buildx create --name mybuilder --use
 # 2. Build and push the multi-arch image:
