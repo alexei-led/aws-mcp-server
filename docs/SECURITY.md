@@ -146,6 +146,18 @@ Configure via `AWS_MCP_SANDBOX_CREDENTIALS` environment variable:
 | `aws_config` | Allow read access to `~/.aws` directory only             |
 | `both`       | Both environment variables and `~/.aws` access (default) |
 
+### Custom Credential Paths
+
+The sandbox automatically detects and whitelists custom credential file paths set via environment variables:
+
+| Environment Variable          | Description                        |
+| ----------------------------- | ---------------------------------- |
+| `AWS_SHARED_CREDENTIALS_FILE` | Custom path to credentials file    |
+| `AWS_CONFIG_FILE`             | Custom path to config file         |
+| `AWS_WEB_IDENTITY_TOKEN_FILE` | Web identity token file (EKS IRSA) |
+
+These paths are granted read-only access within the sandbox, in addition to the default `~/.aws` directory.
+
 ### When to Use Sandboxing
 
 - **Native Python deployment**: Provides isolation when not using Docker

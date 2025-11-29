@@ -63,6 +63,63 @@ def test_get_aws_profiles(mock_config_files):
     assert set(profiles) == {"default", "dev", "prod", "test"}
 
 
+def test_get_aws_profiles_custom_config_file(monkeypatch, tmp_path):
+    """Test get_aws_profiles with custom AWS_CONFIG_FILE."""
+    custom_config = tmp_path / "custom_config"
+    custom_config.write_text("[default]\nregion = us-west-2\n\n[profile custom-profile]\nregion = eu-west-1\n")
+
+    monkeypatch.setenv("AWS_CONFIG_FILE", str(custom_config))
+    # Ensure no default credentials file exists
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    profiles = get_aws_profiles()
+
+    assert "default" in profiles
+    assert "custom-profile" in profiles
+
+
+def test_get_aws_profiles_custom_credentials_file(monkeypatch, tmp_path):
+    """Test get_aws_profiles with custom AWS_SHARED_CREDENTIALS_FILE."""
+    custom_creds = tmp_path / "custom_credentials"
+    custom_creds.write_text(
+        "[default]\n"
+        "aws_access_key_id = AKIATEST\n"
+        "aws_secret_access_key = secret\n\n"
+        "[custom-creds-profile]\n"
+        "aws_access_key_id = AKIACUSTOM\n"
+        "aws_secret_access_key = customsecret\n"
+    )
+
+    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(custom_creds))
+    # Ensure no default config file exists
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    profiles = get_aws_profiles()
+
+    assert "default" in profiles
+    assert "custom-creds-profile" in profiles
+
+
+def test_get_aws_profiles_both_custom_paths(monkeypatch, tmp_path):
+    """Test get_aws_profiles with both custom config and credentials files."""
+    custom_config = tmp_path / "custom_config"
+    custom_config.write_text("[profile config-only-profile]\nregion = us-west-2\n")
+
+    custom_creds = tmp_path / "custom_credentials"
+    custom_creds.write_text("[creds-only-profile]\naws_access_key_id = AKIATEST\naws_secret_access_key = secret\n")
+
+    monkeypatch.setenv("AWS_CONFIG_FILE", str(custom_config))
+    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(custom_creds))
+    # Ensure no default files exist
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    profiles = get_aws_profiles()
+
+    assert "default" in profiles
+    assert "config-only-profile" in profiles
+    assert "creds-only-profile" in profiles
+
+
 @patch("boto3.session.Session")
 def test_get_aws_regions(mock_session):
     """Test retrieving AWS regions with mocked boto3."""
@@ -96,7 +153,10 @@ def test_get_aws_regions(mock_session):
 def test_get_aws_regions_fallback(mock_session):
     """Test fallback behavior when region retrieval fails."""
     # Mock boto3 to raise an exception
-    mock_session.return_value.client.side_effect = ClientError({"Error": {"Code": "AccessDenied", "Message": "Access denied"}}, "DescribeRegions")
+    mock_session.return_value.client.side_effect = ClientError(
+        {"Error": {"Code": "AccessDenied", "Message": "Access denied"}},
+        "DescribeRegions",
+    )
 
     regions = get_aws_regions()
 
@@ -155,7 +215,11 @@ def test_get_aws_account_info(mock_session):
     mock_iam = MagicMock()
     mock_org = MagicMock()
 
-    mock_session.return_value.client.side_effect = lambda service: {"sts": mock_sts, "iam": mock_iam, "organizations": mock_org}[service]
+    mock_session.return_value.client.side_effect = lambda service: {
+        "sts": mock_sts,
+        "iam": mock_iam,
+        "organizations": mock_org,
+    }[service]
 
     # Mock API responses
     mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
@@ -210,11 +274,31 @@ def test_register_resources():
 
     # Check that resource was called with the correct URIs, names and descriptions
     expected_resources = [
-        {"uri": "aws://config/profiles", "name": "aws_profiles", "description": "Get available AWS profiles"},
-        {"uri": "aws://config/regions", "name": "aws_regions", "description": "Get available AWS regions"},
-        {"uri": "aws://config/regions/{region}", "name": "aws_region_details", "description": "Get detailed information about a specific AWS region"},
-        {"uri": "aws://config/environment", "name": "aws_environment", "description": "Get AWS environment information"},
-        {"uri": "aws://config/account", "name": "aws_account", "description": "Get AWS account information"},
+        {
+            "uri": "aws://config/profiles",
+            "name": "aws_profiles",
+            "description": "Get available AWS profiles",
+        },
+        {
+            "uri": "aws://config/regions",
+            "name": "aws_regions",
+            "description": "Get available AWS regions",
+        },
+        {
+            "uri": "aws://config/regions/{region}",
+            "name": "aws_region_details",
+            "description": "Get detailed information about a specific AWS region",
+        },
+        {
+            "uri": "aws://config/environment",
+            "name": "aws_environment",
+            "description": "Get AWS environment information",
+        },
+        {
+            "uri": "aws://config/account",
+            "name": "aws_account",
+            "description": "Get AWS account information",
+        },
     ]
 
     # Extract parameters from each call
@@ -301,7 +385,10 @@ def test_get_aws_environment_credential_methods(mock_session):
         ("iam-role", "instance-profile"),
         ("assume-role", "assume-role"),
         ("container-role", "container-role"),
-        ("unknown-method", "profile"),  # Should fall back to "profile" for unknown methods
+        (
+            "unknown-method",
+            "profile",
+        ),  # Should fall back to "profile" for unknown methods
     ]
 
     for method, expected_source in test_cases:
@@ -345,7 +432,11 @@ def test_get_aws_account_info_with_org(mock_session):
     mock_iam = MagicMock()
     mock_org = MagicMock()
 
-    mock_session.return_value.client.side_effect = lambda service: {"sts": mock_sts, "iam": mock_iam, "organizations": mock_org}[service]
+    mock_session.return_value.client.side_effect = lambda service: {
+        "sts": mock_sts,
+        "iam": mock_iam,
+        "organizations": mock_org,
+    }[service]
 
     # Mock API responses
     mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
@@ -418,7 +509,7 @@ def test_resource_aws_profiles(mock_environ_get, mock_get_aws_profiles):
 def test_resource_aws_regions(mock_environ_get, mock_get_aws_regions):
     """Test the aws_regions resource function implementation."""
     # Set up environment mocks to return us-west-2 for either AWS_REGION or AWS_DEFAULT_REGION
-    mock_environ_get.side_effect = lambda key, default=None: "us-west-2" if key in ("AWS_REGION", "AWS_DEFAULT_REGION") else default
+    mock_environ_get.side_effect = lambda key, default=None: ("us-west-2" if key in ("AWS_REGION", "AWS_DEFAULT_REGION") else default)
 
     # Set up regions mock
     mock_get_aws_regions.return_value = [
@@ -587,13 +678,22 @@ def test_get_region_available_services_pagination(mock_session):
     mock_quotas_client.list_services.side_effect = [
         {
             "Services": [
-                {"ServiceCode": "AWS.EC2", "ServiceName": "Amazon Elastic Compute Cloud"},
-                {"ServiceCode": "AWS.S3", "ServiceName": "Amazon Simple Storage Service"},
+                {
+                    "ServiceCode": "AWS.EC2",
+                    "ServiceName": "Amazon Elastic Compute Cloud",
+                },
+                {
+                    "ServiceCode": "AWS.S3",
+                    "ServiceName": "Amazon Simple Storage Service",
+                },
             ],
             "NextToken": "next-token-1",
         },
         {
-            "Services": [{"ServiceCode": "Lambda", "ServiceName": "AWS Lambda"}, {"ServiceCode": "AWS.DynamoDB", "ServiceName": "Amazon DynamoDB"}],
+            "Services": [
+                {"ServiceCode": "Lambda", "ServiceName": "AWS Lambda"},
+                {"ServiceCode": "AWS.DynamoDB", "ServiceName": "Amazon DynamoDB"},
+            ],
             "NextToken": None,
         },
     ]
@@ -661,13 +761,27 @@ def test_get_region_details(mock_session, mock_get_region_available_services):
     # Mock EC2 availability zones response
     mock_ec2.describe_availability_zones.return_value = {
         "AvailabilityZones": [
-            {"ZoneName": "us-east-1a", "State": "available", "ZoneId": "use1-az1", "ZoneType": "availability-zone"},
-            {"ZoneName": "us-east-1b", "State": "available", "ZoneId": "use1-az2", "ZoneType": "availability-zone"},
+            {
+                "ZoneName": "us-east-1a",
+                "State": "available",
+                "ZoneId": "use1-az1",
+                "ZoneType": "availability-zone",
+            },
+            {
+                "ZoneName": "us-east-1b",
+                "State": "available",
+                "ZoneId": "use1-az2",
+                "ZoneType": "availability-zone",
+            },
         ]
     }
 
     # Mock the services list
-    mock_services = [{"id": "ec2", "name": "EC2"}, {"id": "s3", "name": "S3"}, {"id": "lambda", "name": "Lambda"}]
+    mock_services = [
+        {"id": "ec2", "name": "EC2"},
+        {"id": "s3", "name": "S3"},
+        {"id": "lambda", "name": "Lambda"},
+    ]
     mock_get_region_available_services.return_value = mock_services
 
     # Call the function being tested
@@ -698,7 +812,10 @@ def test_get_region_details(mock_session, mock_get_region_available_services):
 def test_get_region_details_with_error(mock_session, mock_get_region_available_services):
     """Test region details with API errors."""
     # Mock boto3 to raise an exception
-    mock_session.return_value.client.side_effect = ClientError({"Error": {"Code": "AccessDenied", "Message": "Access denied"}}, "DescribeAvailabilityZones")
+    mock_session.return_value.client.side_effect = ClientError(
+        {"Error": {"Code": "AccessDenied", "Message": "Access denied"}},
+        "DescribeAvailabilityZones",
+    )
 
     # Mock the get_region_available_services function to return an empty list
     mock_get_region_available_services.return_value = []
@@ -722,12 +839,30 @@ def test_resource_aws_region_details(mock_get_region_details):
     mock_region_details = {
         "code": "us-east-1",
         "name": "US East (N. Virginia)",
-        "geographic_location": {"continent": "North America", "country": "United States", "city": "Ashburn, Virginia"},
+        "geographic_location": {
+            "continent": "North America",
+            "country": "United States",
+            "city": "Ashburn, Virginia",
+        },
         "availability_zones": [
-            {"name": "us-east-1a", "state": "available", "zone_id": "use1-az1", "zone_type": "availability-zone"},
-            {"name": "us-east-1b", "state": "available", "zone_id": "use1-az2", "zone_type": "availability-zone"},
+            {
+                "name": "us-east-1a",
+                "state": "available",
+                "zone_id": "use1-az1",
+                "zone_type": "availability-zone",
+            },
+            {
+                "name": "us-east-1b",
+                "state": "available",
+                "zone_id": "use1-az2",
+                "zone_type": "availability-zone",
+            },
         ],
-        "services": [{"id": "ec2", "name": "EC2"}, {"id": "s3", "name": "S3"}, {"id": "lambda", "name": "Lambda"}],
+        "services": [
+            {"id": "ec2", "name": "EC2"},
+            {"id": "s3", "name": "S3"},
+            {"id": "lambda", "name": "Lambda"},
+        ],
         "is_current": True,
     }
 
