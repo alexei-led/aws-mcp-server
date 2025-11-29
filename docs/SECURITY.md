@@ -13,11 +13,29 @@ flowchart LR
     AWS --> Cloud[AWS Cloud]
 ```
 
-Security is paramount when executing commands against your AWS environment. The AWS MCP Server implements multiple layers of defense:
+Security is paramount when executing commands against your AWS environment. The AWS MCP Server implements multiple layers of defense.
 
-1. **Command Validation** - Validates commands before execution
-2. **Sandbox Execution** - OS-level process isolation
-3. **IAM Permissions** - AWS-side access control
+### 1. IAM Least Privilege (Critical)
+
+The server executes AWS CLI commands **using the credentials you provide** (via mounted `~/.aws` or environment variables).
+
+- **User Responsibility**: It is **absolutely critical** that these credentials belong to an IAM principal (User or Role) configured with the **minimum necessary permissions** (least privilege).
+- **No Root Credentials**: Never use AWS account root user credentials.
+- **Impact Limitation**: Properly configured IAM permissions are the **primary mechanism** for limiting the potential impact of any command. Even if a command were manipulated, it could only perform actions allowed by the specific IAM policy.
+
+### 2. Trusted User Model
+
+The server assumes the end-user interacting with the MCP client (e.g., Claude Desktop) is the **same trusted individual** who configured the server.
+
+- **Do not expose** the server or connected client to untrusted users.
+- **Command Risks**: While the server implements command validation, the "trusted user" is assumed not to provide intentionally malicious commands against their own environment.
+- **Credential Safety**: Strict IAM policies are the most vital defense against potential credential misuse.
+
+### 3. Deployment Isolation
+
+- **Command Validation**: Blocks dangerous commands (IAM modifications, audit tampering, etc.).
+- **Sandbox Execution**: OS-level process isolation.
+- **Docker Isolation**: When running in Docker (recommended), the container provides filesystem and process isolation.
 
 ## Security Modes
 

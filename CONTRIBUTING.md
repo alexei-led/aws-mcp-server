@@ -4,22 +4,7 @@
 
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/aws-mcp-server.git`
-3. Set up development environment (see [Development Guide](docs/DEVELOPMENT.md))
-
-## Development Setup
-
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install dev dependencies
-pip install -e ".[dev]"
-
-# Or use uv (faster)
-pip install uv
-uv pip sync --system uv.lock
-```
+3. Set up development environment - see [Development Guide](docs/DEVELOPMENT.md)
 
 ## Making Changes
 

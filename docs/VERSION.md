@@ -11,8 +11,8 @@ This project uses [setuptools_scm](https://setuptools-scm.readthedocs.io/) to au
 ## Version Format
 
 - Release: When on a tag (e.g., `1.2.3`), the version is exactly that tag
-- Development: When between tags, the version is `<last-tag>.post<n>+g<commit-hash>`
-  - Example: `1.2.3.post10+gb697684`
+- Development: When between tags, the version is `<last-tag>.dev<n>+g<commit-hash>.d<date>`
+  - Example: `1.2.3.dev10+gb697684.d20250101`
 
 ## Local Development
 
@@ -53,6 +53,7 @@ For Docker builds, the version is:
 To create a new release:
 
 1. Create and push a tag that follows semantic versioning:
+
    ```bash
    git tag -a 1.2.3 -m "Release 1.2.3"
    git push origin 1.2.3
