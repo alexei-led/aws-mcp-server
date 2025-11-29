@@ -1,5 +1,4 @@
 name: Release
-
 on:
   push:
     branches:
@@ -7,108 +6,89 @@ on:
       - main
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - v[0-9]+.[0-9]+.[0-9]+
     paths-ignore:
-      - 'tests/**'
+      - tests/**
       - '*.md'
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[ci skip]') && !contains(github.event.head_commit.message, '[skip ci]')"
-
+    if: '!contains(github.event.head_commit.message, ''[ci skip]'') && !contains(github.event.head_commit.message, ''[skip ci]'')'
     permissions:
       contents: read
       packages: write
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.13"
-          cache: "pip"
-
-      - name: Install dependencies and run tests
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Set up Python
+        run: uv python install
+      - name: Install dependencies
         run: |
-          python -m pip install -e ".[dev]"
-          # Run linting and tests to verify before release
+          uv pip sync --system uv.lock
+          uv pip install --system -e .
+      - name: Lint and test
+        run: |
           make lint
           make test
-          
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.xml
+          files: ./coverage.xml
           fail_ci_if_error: false
           verbose: true
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install setuptools_scm
-        run: pip install setuptools_scm
-
-      - name: Generate version file and get version information
+      - name: Generate version information
         id: version
         run: |
-          # Generate version file automatically 
-          VERSION=$(python -m setuptools_scm)
-          
-          # Check if we're on a tag
+          VERSION=$(uv run python -m setuptools_scm)
+
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "is_tag=true" >> $GITHUB_OUTPUT
-            
-            # Parse semver components for tagging
             VERSION_NO_V=$(echo "${{ github.ref_name }}" | sed 's/^v//')
-            # overwrite VERSION with the tag name
             VERSION=${VERSION_NO_V}
             MAJOR=$(echo "${VERSION_NO_V}" | cut -d. -f1)
             MINOR=$(echo "${VERSION_NO_V}" | cut -d. -f2)
-            PATCH=$(echo "${VERSION_NO_V}" | cut -d. -f3)
-            
-            echo "major=${MAJOR}" >> $GITHUB_OUTPUT
-            echo "major_minor=${MAJOR}.${MINOR}" >> $GITHUB_OUTPUT
-            echo "major_minor_patch=${VERSION_NO_V}" >> $GITHUB_OUTPUT
-            echo "version=${VERSION_NO_V}" >> $GITHUB_OUTPUT
-          else
-            # For non-tag builds, use setuptools_scm
-            VERSION=$(python -m setuptools_scm)
-            # Make version Docker-compatible (replace + with -)
-            DOCKER_VERSION=$(echo "$VERSION" | tr '+' '-')
-            echo "is_tag=false" >> $GITHUB_OUTPUT
-            echo "version=${DOCKER_VERSION}" >> $GITHUB_OUTPUT
-          fi
-          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-          
-          # Update the version in pyproject.toml
-          sed -i "s|fallback_version=\"0.0.0-dev0\"|fallback_version=\"${VERSION}\"|g" pyproject.toml
 
+            {
+              echo "is_tag=true"
+              echo "major=${MAJOR}"
+              echo "major_minor=${MAJOR}.${MINOR}"
+              echo "major_minor_patch=${VERSION_NO_V}"
+              echo "version=${VERSION_NO_V}"
+            } >> "$GITHUB_OUTPUT"
+          else
+            DOCKER_VERSION=$(echo "${VERSION}" | tr '+' '-')
+            {
+              echo "is_tag=false"
+              echo "version=${DOCKER_VERSION}"
+            } >> "$GITHUB_OUTPUT"
+          fi
+          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+          sed -i "s|fallback_version=\"0.0.0-dev0\"|fallback_version=\"${VERSION}\"|g" pyproject.toml
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            # For tags: exact semver from the tag name
             type=raw,value=${{ steps.version.outputs.major_minor_patch }},enable=${{ steps.version.outputs.is_tag == 'true' }}
             type=raw,value=${{ steps.version.outputs.major_minor }},enable=${{ steps.version.outputs.is_tag == 'true' }}
             type=raw,value=${{ steps.version.outputs.major }},enable=${{ steps.version.outputs.is_tag == 'true' }}
             type=raw,value=latest,enable=${{ steps.version.outputs.is_tag == 'true' }}
-            # Git SHA for both tag and non-tag builds
             type=sha,format=short
-            # For main branch: dev tag
             type=raw,value=dev,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build and push multi-architecture Docker image
         uses: docker/build-push-action@v6
         with:
