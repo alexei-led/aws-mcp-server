@@ -240,15 +240,23 @@ The `uv.lock` file ensures reproducible builds. Always update it when changing d
 
 ## Docker Development
 
+The Docker image uses a pre-built Python wheel for faster builds and consistent versioning.
+
 ### Building the Image
 
 ```bash
-# Build locally
-docker build -f deploy/docker/Dockerfile -t aws-mcp-server .
+# Step 1: Build the Python wheel (required)
+uv build
 
-# Or use docker-compose
-docker compose -f deploy/docker/docker-compose.yml build
+# Step 2: Build Docker image
+docker build -f deploy/docker/Dockerfile -t aws-mcp-server .
 ```
+
+The wheel in `dist/` contains the correct version from `setuptools_scm`. This approach:
+
+- Reuses the same versioned package across CI, PyPI, and Docker
+- Speeds up Docker builds (no Python build inside container)
+- Ensures version consistency between `pip install aws-mcp` and Docker image
 
 ### Running in Docker
 

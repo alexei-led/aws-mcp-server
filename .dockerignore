@@ -28,7 +28,6 @@ __pycache__/
 .installed.cfg
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
