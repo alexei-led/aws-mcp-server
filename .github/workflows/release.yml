@@ -19,6 +19,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -37,12 +39,6 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
           verbose: true
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate version information
         id: version
         run: |
@@ -69,8 +65,17 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
-          sed -i "s|fallback_version=\"0.0.0-dev0\"|fallback_version=\"${VERSION}\"|g" pyproject.toml
+      - name: Build Python package
+        run: uv build
+      - name: Verify wheel
+        run: |
+          uv run --isolated --no-project --with dist/*.whl -- python -c "import aws_mcp_server; print(f'Version: {aws_mcp_server.__version__}')"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -99,6 +104,12 @@ jobs:
             VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Upload wheel artifact
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v5
+        with:
+          name: dist
+          path: dist/
   publish-pypi:
     if: github.ref_type == 'tag'
     needs: build-and-push
@@ -107,12 +118,12 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v5
         with:
-          fetch-depth: 0
+          name: dist
+          path: dist/
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-      - name: Build package
-        run: uv build
       - name: Publish to PyPI
-        run: uv publish
+        run: uv publish dist/*

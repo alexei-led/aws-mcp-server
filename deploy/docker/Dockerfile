@@ -1,30 +1,6 @@
-# Multi-stage build with platform-specific configuration
+# Simplified Dockerfile - installs pre-built wheel
 ARG PYTHON_VERSION=3.13-slim
-ARG VERSION
 
-# =========== BUILDER STAGE ===========
-FROM --platform=${TARGETPLATFORM} python:${PYTHON_VERSION} AS builder
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set up working directory
-WORKDIR /build
-
-# Copy package definition files
-COPY pyproject.toml README.md LICENSE ./
-COPY src/ ./src/
-
-RUN cat pyproject.toml
-
-# Install package and dependencies with pip wheel
-RUN pip install --no-cache-dir wheel && \
-    pip wheel --no-cache-dir --wheel-dir=/wheels -e .
-
-# =========== FINAL STAGE ===========
 FROM --platform=${TARGETPLATFORM} python:${PYTHON_VERSION}
 
 # Set target architecture argument
@@ -86,16 +62,11 @@ RUN useradd -m -s /bin/bash -u 10001 appuser \
 
 WORKDIR /app
 
-# Copy application code
-COPY pyproject.toml README.md LICENSE ./
-COPY src/ ./src/
+# Copy and install pre-built wheel
+COPY dist/*.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl && rm -rf /tmp/*.whl
 
-# Copy wheels from builder and install
-COPY --from=builder /wheels /wheels
-RUN pip install --no-cache-dir --no-index --find-links=/wheels alexei-led.aws-mcp-server && \
-    rm -rf /wheels
-
-# Set ownership after all files have been copied - avoid .aws directory
+# Set ownership
 RUN chown -R appuser:appuser /app
 
 # Switch to non-root user
@@ -111,4 +82,4 @@ ENV HOME="/home/appuser" \
 EXPOSE 8000
 
 # Set command to run the server
-ENTRYPOINT ["python", "-m", "aws_mcp_server"]
+ENTRYPOINT ["aws-mcp"]

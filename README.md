@@ -1,134 +1,165 @@
-# AWS Model Context Protocol (MCP) Server
+# AWS MCP Server
 
 [![CI](https://github.com/alexei-led/aws-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/alexei-led/aws-mcp-server/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/alexei-led.aws-mcp-server)](https://pypi.org/project/alexei-led.aws-mcp-server/)
+[![PyPI](https://img.shields.io/pypi/v/aws-mcp)](https://pypi.org/project/aws-mcp/)
 [![Code Coverage](https://codecov.io/gh/alexei-led/aws-mcp-server/branch/main/graph/badge.svg?token=K8vdP3zyuy)](https://codecov.io/gh/alexei-led/aws-mcp-server)
 [![Linter: Ruff](https://img.shields.io/badge/Linter-Ruff-brightgreen?style=flat-square)](https://github.com/alexei-led/aws-mcp-server)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-aws--mcp--server-blue?logo=docker)](https://github.com/alexei-led/aws-mcp-server/pkgs/container/aws-mcp-server)
 
-A secure MCP server that gives AI assistants access to all 200+ AWS services through two simple tools.
-
-## Why This Approach?
-
-**The problem with wrapping AWS APIs directly:** AWS has 200+ services with thousands of operations. Creating an MCP tool for each would mean massive code, constant maintenance as AWS evolves, and duplicating what AWS CLI already does.
-
-**The solution:** AWS CLI is already a comprehensive, well-documented abstraction over AWS APIs. This project wraps the CLI itself, giving AI assistants:
-
-- **Complete AWS coverage** through just 2 tools (help lookup + command execution)
-- **Self-service documentation** via `--help` - the AI learns commands on demand
-- **Unix pipe support** for filtering and transforming output (`jq`, `grep`, `sort`, etc.)
-- **Zero maintenance** as AWS adds services - the CLI handles it
-
-**Security model:**
-
-- **Host protection**: Docker container or OS sandbox (Landlock/Bubblewrap/Seatbelt) isolates command execution.
-- **AWS protection**: Your IAM role/policy - this project relies on AWS IAM for access control.
-
-```mermaid
-flowchart LR
-    AI[AI Assistant] -->|MCP| Server[AWS MCP Server]
-    Server --> Sandbox[Docker/Sandbox]
-    Sandbox --> CLI[AWS CLI]
-    CLI --> AWS[AWS Cloud]
-    IAM[Your IAM Policy] -.->|controls| AWS
-```
-
-## Overview
-
-Two tools provide complete AWS access:
-
-| Tool               | Purpose                                                                        |
-| :----------------- | :----------------------------------------------------------------------------- |
-| `aws_cli_help`     | Get documentation for any AWS service/command. Use this first to learn syntax. |
-| `aws_cli_pipeline` | Execute AWS CLI commands, optionally with Unix pipes for output processing.    |
-
-**Recommended workflow:** Help first, then execute. The AI learns command syntax from AWS's built-in help system before running commands.
+Give Claude access to all 200+ AWS services through the AWS CLI.
 
 ## Demo
 
 [Demo](https://private-user-images.githubusercontent.com/1898375/424996801-b51ddc8e-5df5-40c4-8509-84c1a7800d62.mp4?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDI0NzY5OTUsIm5iZiI6MTc0MjQ3NjY5NSwicGF0aCI6Ii8xODk4Mzc1LzQyNDk5NjgwMS1iNTFkZGM4ZS01ZGY1LTQwYzQtODUwOS04NGMxYTc4MDBkNjIubXA0P1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI1MDMyMCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNTAzMjBUMTMxODE1WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9NjgwNTM4MDVjN2U4YjQzN2Y2N2Y5MGVkMThiZTgxYWEyNzBhZTlhMTRjZDY3ZDJmMzJkNmViM2U4M2U4MTEzNSZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QifQ.tIb7uSkDpSaspIluzCliHS8ATmlzkvEnF3CiClD-UGQ)
 
-## Features
+## What It Does
 
-- **Command Documentation** - Detailed help information for AWS CLI commands
-- **Command Execution** - Execute AWS CLI commands and return human-readable results
-- **Unix Pipe Support** - Filter and transform AWS CLI output using standard Unix pipes and utilities
-- **AWS Resources Context** - Access to AWS profiles, regions, account information, and environment details via MCP Resources
-- **Prompt Templates** - Pre-defined prompt templates for common AWS tasks following best practices
-- **Docker Integration** - Simple deployment through containerization with multi-architecture support
-- **AWS Authentication** - Leverages existing AWS credentials on the host machine
+This MCP server lets Claude run AWS CLI commands on your behalf. Instead of wrapping each AWS API individually, it wraps the CLI itself—giving Claude complete AWS access through just two tools:
 
-## Documentation
+| Tool               | Purpose                                                           |
+| ------------------ | ----------------------------------------------------------------- |
+| `aws_cli_help`     | Get documentation for any AWS command                             |
+| `aws_cli_pipeline` | Execute AWS CLI commands with optional pipes (`jq`, `grep`, etc.) |
 
-- **[Usage Guide](docs/USAGE.md)**: Detailed instructions on integration, tools, resources, and prompts.
-- **[Security Architecture](docs/SECURITY.md)**: Three-layer security model (IAM + Sandbox + Docker).
-- **[Security Policy](SECURITY.md)**: Vulnerability reporting and supported versions.
-- **[Development Guide](docs/DEVELOPMENT.md)**: Setup, testing, and contribution.
-- **[Version Management](docs/VERSION.md)**: Git-based versioning details.
+Claude learns commands on-demand using `--help`, then executes them. Your IAM policy controls what it can actually do.
 
-## Getting Started
-
-### Option 1: Using Docker (Recommended)
-
-Running inside Docker provides the strongest isolation and security.
-
-```bash
-docker run -i --rm \
-  -v ~/.aws:/home/appuser/.aws:ro \
-  ghcr.io/alexei-led/aws-mcp-server:latest
+```mermaid
+flowchart LR
+    Claude[Claude] -->|MCP| Server[AWS MCP Server]
+    Server --> CLI[AWS CLI]
+    CLI --> AWS[AWS Cloud]
+    IAM[Your IAM Policy] -.->|controls| AWS
 ```
 
-The image supports both AMD64 and ARM64 (Apple Silicon/Graviton).
+## Quick Start
 
-### Option 2: Using uvx (Quick)
+### Prerequisites
 
-Run directly without installation:
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
+- AWS credentials configured (see [AWS Credentials](#aws-credentials))
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) installed (for `uvx`)
 
-```bash
-uvx alexei-led.aws-mcp-server
+### Claude Code
+
+Add to your MCP settings (Cmd+Shift+P → "Claude: Open MCP Config"):
+
+```json
+{
+  "mcpServers": {
+    "aws": {
+      "command": "uvx",
+      "args": ["aws-mcp"]
+    }
+  }
+}
 ```
 
-### Option 3: Using pip
+### Claude Desktop
 
-**Caution:** Running natively requires careful environment setup. Review [Security Considerations](#security-considerations).
+Add to your Claude Desktop config file:
 
-```bash
-pip install alexei-led.aws-mcp-server
-aws-mcp-server
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "aws": {
+      "command": "uvx",
+      "args": ["aws-mcp"]
+    }
+  }
+}
+```
+
+### Docker (More Secure)
+
+Docker provides stronger isolation by running commands in a container:
+
+```json
+{
+  "mcpServers": {
+    "aws": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "~/.aws:/home/appuser/.aws:ro",
+        "ghcr.io/alexei-led/aws-mcp-server:latest"
+      ]
+    }
+  }
+}
+```
+
+> **Note**: Replace `~/.aws` with the full path on Windows (e.g., `C:\Users\YOU\.aws`).
+
+## AWS Credentials
+
+The server uses the standard AWS credential chain. Your credentials are discovered automatically from:
+
+1. **Environment variables**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+2. **Credentials file**: `~/.aws/credentials`
+3. **Config file**: `~/.aws/config` (for profiles and region)
+4. **IAM role**: When running on EC2, ECS, or Lambda
+
+To use a specific profile:
+
+```json
+{
+  "mcpServers": {
+    "aws": {
+      "command": "uvx",
+      "args": ["aws-mcp"],
+      "env": {
+        "AWS_PROFILE": "my-profile"
+      }
+    }
+  }
+}
 ```
 
 ## Configuration
 
-The AWS MCP Server can be configured using environment variables:
+### AWS Settings
 
-| Environment Variable          | Description                                       | Default   |
-| :---------------------------- | :------------------------------------------------ | :-------- |
-| `AWS_MCP_TIMEOUT`             | Command execution timeout in seconds              | 300       |
-| `AWS_MCP_MAX_OUTPUT`          | Maximum output size in characters                 | 100000    |
-| `AWS_MCP_TRANSPORT`           | Transport protocol ("stdio" or "sse")             | stdio     |
-| `AWS_PROFILE`                 | AWS profile to use                                | default   |
-| `AWS_REGION`                  | AWS region to use                                 | us-east-1 |
-| `AWS_MCP_SANDBOX`             | Sandbox mode ("auto", "disabled", "required")     | auto      |
-| `AWS_MCP_SANDBOX_CREDENTIALS` | Credentials passing ("env", "aws_config", "both") | both      |
+| Environment Variable          | Description                                    | Default              |
+| ----------------------------- | ---------------------------------------------- | -------------------- |
+| `AWS_PROFILE`                 | AWS profile to use                             | `default`            |
+| `AWS_REGION`                  | AWS region (also accepts `AWS_DEFAULT_REGION`) | `us-east-1`          |
+| `AWS_CONFIG_FILE`             | Custom path to AWS config file                 | `~/.aws/config`      |
+| `AWS_SHARED_CREDENTIALS_FILE` | Custom path to credentials file                | `~/.aws/credentials` |
 
-## Security Considerations
+### Server Settings
 
-Security is paramount. While the server provides sandboxing, **you are responsible** for:
+| Environment Variable          | Description                                      | Default  |
+| ----------------------------- | ------------------------------------------------ | -------- |
+| `AWS_MCP_TIMEOUT`             | Command execution timeout in seconds             | `300`    |
+| `AWS_MCP_MAX_OUTPUT`          | Maximum output size in characters                | `100000` |
+| `AWS_MCP_TRANSPORT`           | Transport protocol (`stdio` or `sse`)            | `stdio`  |
+| `AWS_MCP_SANDBOX`             | Sandbox mode (`auto`, `disabled`, `required`)    | `auto`   |
+| `AWS_MCP_SANDBOX_CREDENTIALS` | Credential passing (`env`, `aws_config`, `both`) | `both`   |
 
-1. **Deployment**: Use Docker for the strongest filesystem and process isolation.
-2. **Least Privilege**: Ensure the AWS credentials provided to the server have only the minimum necessary permissions. **Never use root credentials.**
-3. **Trusted User**: Only expose this server to trusted users (yourself).
+## Security
 
-For a detailed security analysis, including the Trusted User Model and Sandbox vs Docker comparison, please read the **[Security Architecture](docs/SECURITY.md)**.
+**Your IAM policy is your security boundary.** This server executes whatever AWS commands Claude requests—IAM controls what actually succeeds.
 
-## Usage & Integration
+Best practices:
 
-For instructions on integrating with **Claude Desktop**, examples of **Tools** and **Prompts**, and using **Resources**, see the **[Usage Guide](docs/USAGE.md)**.
+- Use a **least-privilege IAM role** (only permissions Claude needs)
+- **Never use root credentials**
+- Consider **Docker** for additional host isolation
 
-## Development
+For detailed security architecture, see [Security Documentation](docs/SECURITY.md).
 
-See **[Development Guide](docs/DEVELOPMENT.md)** for project setup and testing.
+## Documentation
+
+- [Usage Guide](docs/USAGE.md) — Tools, resources, and prompt templates
+- [Security Architecture](docs/SECURITY.md) — IAM + Sandbox + Docker model
+- [Development Guide](docs/DEVELOPMENT.md) — Contributing and testing
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License — see [LICENSE](LICENSE) for details.

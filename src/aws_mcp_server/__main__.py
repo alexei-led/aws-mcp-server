@@ -5,6 +5,7 @@ FastMCP handles the command-line arguments and server configuration.
 """
 
 import logging
+import os
 import signal
 import sys
 
@@ -18,9 +19,9 @@ logging.basicConfig(
 
 
 def handle_interrupt(signum, frame):
-    """Handle keyboard interrupt (Ctrl+C) gracefully."""
-    logger.info(f"Received signal {signum}, shutting down gracefully...")
-    sys.exit(0)
+    """Handle interrupt signal by exiting immediately."""
+    logger.info(f"Received signal {signum}, shutting down...")
+    os._exit(0)
 
 
 def main():
@@ -38,8 +39,8 @@ def main():
         logger.info(f"Starting server with transport protocol: {TRANSPORT}")
         mcp.run(transport=TRANSPORT)
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received. Shutting down gracefully...")
-        sys.exit(0)
+        logger.info("Keyboard interrupt received. Shutting down...")
+        os._exit(0)
 
 
 if __name__ == "__main__":
