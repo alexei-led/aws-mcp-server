@@ -1,187 +1,123 @@
-# User Guide
+# Usage Guide
 
-This guide details how to use the AWS MCP Server with AI assistants like Claude Desktop or Cursor. It covers tools, resources, and prompt templates designed to make AWS interactions safe and efficient.
+This guide covers the tools, resources, and prompt templates provided by the AWS MCP Server.
+
+For installation and setup, see the [README](../README.md).
 
 ## Table of Contents
 
-- [Getting Started](#getting-started)
-- [Claude Desktop Integration](#claude-desktop-integration)
 - [Core Tools](#core-tools)
 - [Context Resources](#context-resources)
 - [Prompt Templates](#prompt-templates)
 - [Best Practices](#best-practices)
 
-## Getting Started
-
-You can run the AWS MCP Server using Docker (recommended), uvx, or pip.
-
-### Docker (Recommended)
-
-```bash
-docker run -i --rm \
-  -v ~/.aws:/home/appuser/.aws:ro \
-  ghcr.io/alexei-led/aws-mcp-server:latest
-```
-
-### uvx (Quick)
-
-```bash
-# Requires Python 3.13+ and AWS CLI installed
-uvx alexei-led.aws-mcp-server
-```
-
-### pip
-
-```bash
-# Requires Python 3.13+ and AWS CLI installed
-pip install alexei-led.aws-mcp-server
-aws-mcp-server
-```
-
-See the [README](../README.md) for full installation and configuration details.
-
-## Claude Desktop Integration
-
-To use this server with Claude Desktop, add it to your configuration file:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-### Using uvx (Recommended)
-
-```json
-{
-  "mcpServers": {
-    "aws": {
-      "command": "uvx",
-      "args": ["alexei-led.aws-mcp-server"]
-    }
-  }
-}
-```
-
-### Using Docker
-
-```json
-{
-  "mcpServers": {
-    "aws": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-v",
-        "/Users/YOUR_USERNAME/.aws:/home/appuser/.aws:ro",
-        "ghcr.io/alexei-led/aws-mcp-server:latest"
-      ]
-    }
-  }
-}
-```
-
-> **Note**: Update `/Users/YOUR_USERNAME/.aws` to match your local AWS credentials path.
-
 ## Core Tools
 
-The server provides two primary tools that give you access to the full AWS CLI.
+The server provides two tools that give Claude access to the full AWS CLI.
 
 ### `aws_cli_help`
 
-**Purpose**: Get documentation for any AWS service or command.  
-**Usage**: `aws_cli_help(command="s3 cp")`
+**Purpose**: Get documentation for any AWS service or command.
 
-Use this tool to learn command syntax, available options, and examples before executing commands.
+**Parameters**:
+
+- `service` (required): AWS service name (e.g., "s3", "ec2", "lambda")
+- `command` (optional): Specific command within the service (e.g., "ls", "describe-instances")
+
+**Examples**:
+
+```
+aws_cli_help(service="s3")              # General S3 help
+aws_cli_help(service="s3", command="cp") # Help for s3 cp command
+aws_cli_help(service="ec2", command="describe-instances")
+```
+
+Use this tool first to learn command syntax before executing.
 
 ### `aws_cli_pipeline`
 
-**Purpose**: Execute AWS CLI commands securely.  
-**Usage**: `aws_cli_pipeline(command="aws s3 ls")`
+**Purpose**: Execute AWS CLI commands with optional Unix pipes.
 
-This tool runs the command and returns the output. It supports Unix pipes for filtering.
+**Parameters**:
 
-**Examples:**
+- `command` (required): The AWS CLI command (must start with `aws`)
+- `timeout` (optional): Command timeout in seconds (default: 300)
 
-1. **List S3 Buckets**:
-   `aws s3 ls`
+**Examples**:
 
-2. **Filter Output with `jq`**:
-   `aws ec2 describe-instances | jq '.Reservations[].Instances[].InstanceId'`
+```bash
+# Simple command
+aws s3 ls
 
-3. **Find a Specific Log Group**:
-   `aws logs describe-log-groups | grep "production"`
+# With output filtering
+aws ec2 describe-instances | jq '.Reservations[].Instances[].InstanceId'
+
+# Chain multiple filters
+aws logs describe-log-groups | grep "production" | head -10
+
+# Complex queries
+aws ec2 describe-instances --query 'Reservations[].Instances[?State.Name==`running`].[InstanceId,Tags[?Key==`Name`].Value]' --output table
+```
 
 ## Context Resources
 
-Resources allow the AI to read configuration and state from your environment.
+Resources provide Claude with read-only access to your AWS configuration and environment.
 
-| Resource Name       | URI                             | Description                                                    |
-| :------------------ | :------------------------------ | :------------------------------------------------------------- |
-| **AWS Profiles**    | `aws://config/profiles`         | Lists available AWS profiles in your config/credentials files. |
-| **AWS Regions**     | `aws://config/regions`          | Lists all available AWS regions with descriptions.             |
-| **Region Details**  | `aws://config/regions/{region}` | Detailed info for a region (AZs, available services).          |
-| **AWS Environment** | `aws://config/environment`      | Current active profile, region, and credential status.         |
-| **AWS Account**     | `aws://config/account`          | Current Account ID and Account Alias.                          |
+| Resource           | URI                             | Description                                 |
+| ------------------ | ------------------------------- | ------------------------------------------- |
+| **Profiles**       | `aws://config/profiles`         | Available AWS profiles from `~/.aws/config` |
+| **Regions**        | `aws://config/regions`          | All AWS regions with descriptions           |
+| **Region Details** | `aws://config/regions/{region}` | AZs and services for a specific region      |
+| **Environment**    | `aws://config/environment`      | Current profile, region, credential status  |
+| **Account**        | `aws://config/account`          | Account ID and alias                        |
 
 **Example Usage**:
 
-> "Check `aws://config/environment` to see which region I am currently connected to."
+Ask Claude: _"Check `aws://config/environment` to see which region I'm connected to"_
 
 ## Prompt Templates
 
-Pre-defined prompts help you generate complex commands following AWS best practices.
+Pre-defined prompts help generate AWS commands following best practices.
 
 ### Core Operations
 
-- **`create_resource`**: Generate creation commands with security best practices.
-  - _Params_: `resource_type` (e.g., "s3-bucket"), `resource_name`
-- **`resource_inventory`**: List resources with key details and metadata.
-  - _Params_: `service` (e.g., "ec2"), `region` (default: "all")
-- **`resource_cleanup`**: Find unused resources for potential deletion.
-  - _Params_: `service`, `criteria` (default: "unused")
-- **`troubleshoot_service`**: Diagnose issues with a specific resource.
-  - _Params_: `service`, `resource_id`
+| Prompt                 | Purpose                                                 | Parameters                              |
+| ---------------------- | ------------------------------------------------------- | --------------------------------------- |
+| `create_resource`      | Generate creation commands with security best practices | `resource_type`, `resource_name`        |
+| `resource_inventory`   | List resources with metadata                            | `service`, `region` (default: all)      |
+| `resource_cleanup`     | Find unused resources                                   | `service`, `criteria` (default: unused) |
+| `troubleshoot_service` | Diagnose resource issues                                | `service`, `resource_id`                |
 
 ### Security & Compliance
 
-- **`security_audit`**: Audit a specific service for security risks.
-  - _Params_: `service`
-- **`security_posture_assessment`**: Account-wide security check (Security Hub, GuardDuty, etc.).
-- **`iam_policy_generator`**: Create least-privilege IAM policies.
-  - _Params_: `service`, `actions`, `resource_pattern`
-- **`compliance_check`**: Check compliance with standards (HIPAA, PCI, etc.).
-  - _Params_: `compliance_standard`, `service`
+| Prompt                        | Purpose                          | Parameters                               |
+| ----------------------------- | -------------------------------- | ---------------------------------------- |
+| `security_audit`              | Audit service for security risks | `service`                                |
+| `security_posture_assessment` | Account-wide security check      | —                                        |
+| `iam_policy_generator`        | Create least-privilege policies  | `service`, `actions`, `resource_pattern` |
+| `compliance_check`            | Check compliance standards       | `compliance_standard`, `service`         |
 
 ### Cost & Performance
 
-- **`cost_optimization`**: Find cost savings (idle resources, sizing).
-  - _Params_: `service`
-- **`performance_tuning`**: Analyze metrics and suggest tuning.
-  - _Params_: `service`, `resource_id`
+| Prompt               | Purpose                    | Parameters               |
+| -------------------- | -------------------------- | ------------------------ |
+| `cost_optimization`  | Find cost savings          | `service`                |
+| `performance_tuning` | Analyze and suggest tuning | `service`, `resource_id` |
 
-### Infrastructure & Architecture
+### Infrastructure
 
-- **`serverless_deployment`**: Deploy Lambda/API Gateway apps.
-  - _Params_: `application_name`, `runtime` (default: "python3.12")
-- **`container_orchestration`**: Setup ECS/EKS clusters.
-  - _Params_: `cluster_name`, `service_type` (default: "fargate")
-- **`vpc_network_design`**: Design a secure VPC with subnets.
-  - _Params_: `vpc_name`, `cidr_block`
-- **`infrastructure_automation`**: Setup SSM automation or EventBridge rules.
-  - _Params_: `resource_type`, `automation_scope`
-- **`multi_account_governance`**: Setup AWS Organizations/Control Tower structures.
-  - _Params_: `account_type`
-
-### Reliability & Monitoring
-
-- **`service_monitoring`**: Setup CloudWatch alarms and dashboards.
-  - _Params_: `service`, `metric_type`
-- **`disaster_recovery`**: Setup backups and DR plans.
-  - _Params_: `service`, `recovery_point_objective`
+| Prompt                    | Purpose                   | Parameters                            |
+| ------------------------- | ------------------------- | ------------------------------------- |
+| `serverless_deployment`   | Deploy Lambda/API Gateway | `application_name`, `runtime`         |
+| `container_orchestration` | Setup ECS/EKS             | `cluster_name`, `service_type`        |
+| `vpc_network_design`      | Design secure VPC         | `vpc_name`, `cidr_block`              |
+| `service_monitoring`      | Setup CloudWatch alarms   | `service`, `metric_type`              |
+| `disaster_recovery`       | Setup backups and DR      | `service`, `recovery_point_objective` |
 
 ## Best Practices
 
-1. **Check Help First**: Always ask the AI to check `aws_cli_help` if it's unsure about a command's syntax.
-2. **Dry Runs**: For destructive operations, ask the AI to generate a command with `--dry-run` (if supported) or review the command before execution.
-3. **Least Privilege**: Ensure the AWS credentials you provide to the server have only the permissions necessary for your current task.
-4. **Use Resources**: Ask the AI to read `aws://config/account` or `aws://config/environment` to verify context before running commands.
+1. **Check Help First**: Ask Claude to use `aws_cli_help` before running unfamiliar commands
+2. **Verify Context**: Use `aws://config/environment` to confirm profile and region
+3. **Dry Runs**: For destructive operations, ask Claude to use `--dry-run` when supported
+4. **Least Privilege**: Ensure your AWS credentials have only necessary permissions
+5. **Review Commands**: Ask Claude to show the command before executing sensitive operations
