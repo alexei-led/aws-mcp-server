@@ -60,7 +60,7 @@ Two tools provide complete AWS access:
 ## Documentation
 
 - **[Usage Guide](docs/USAGE.md)**: Detailed instructions on integration, tools, resources, and prompts.
-- **[Security Architecture](docs/SECURITY.md)**: Security model, command validation, sandboxing, and best practices.
+- **[Security Architecture](docs/SECURITY.md)**: Three-layer security model (IAM + Sandbox + Docker).
 - **[Security Policy](SECURITY.md)**: Vulnerability reporting and supported versions.
 - **[Development Guide](docs/DEVELOPMENT.md)**: Setup, testing, and contribution.
 - **[Version Management](docs/VERSION.md)**: Git-based versioning details.
@@ -99,14 +99,12 @@ The AWS MCP Server can be configured using environment variables:
 | `AWS_MCP_TRANSPORT`           | Transport protocol ("stdio" or "sse")             | stdio     |
 | `AWS_PROFILE`                 | AWS profile to use                                | default   |
 | `AWS_REGION`                  | AWS region to use                                 | us-east-1 |
-| `AWS_MCP_SECURITY_MODE`       | Security mode ("strict" or "permissive")          | strict    |
-| `AWS_MCP_SECURITY_CONFIG`     | Path to custom security configuration file        | ""        |
 | `AWS_MCP_SANDBOX`             | Sandbox mode ("auto", "disabled", "required")     | auto      |
 | `AWS_MCP_SANDBOX_CREDENTIALS` | Credentials passing ("env", "aws_config", "both") | both      |
 
 ## Security Considerations
 
-Security is paramount. While the server provides validation and sandboxing, **you are responsible** for:
+Security is paramount. While the server provides sandboxing, **you are responsible** for:
 
 1. **Deployment**: Use Docker for the strongest filesystem and process isolation.
 2. **Least Privilege**: Ensure the AWS credentials provided to the server have only the minimum necessary permissions. **Never use root credentials.**
