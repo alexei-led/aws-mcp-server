@@ -83,7 +83,11 @@ def get_aws_regions() -> List[Dict[str, str]]:
     try:
         # Create a session - boto3 will automatically use credentials from
         # environment variables if no config file is available
-        session = boto3.session.Session(region_name=os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")))
+        session = boto3.session.Session(
+            region_name=os.environ.get(
+                "AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+            )
+        )
         ec2 = session.client("ec2")
         response = ec2.describe_regions()
 
@@ -93,7 +97,9 @@ def get_aws_regions() -> List[Dict[str, str]]:
             region_name = region["RegionName"]
             # Create a friendly name based on the region code
             description = _get_region_description(region_name)
-            regions.append({"RegionName": region_name, "RegionDescription": description})
+            regions.append(
+                {"RegionName": region_name, "RegionDescription": description}
+            )
 
         # Sort regions by name
         regions.sort(key=lambda r: r["RegionName"])
@@ -175,7 +181,9 @@ def _get_region_description(region_code: str) -> str:
     return region_map.get(region_code, f"AWS Region {region_code}")
 
 
-def get_region_available_services(session: boto3.session.Session, region_code: str) -> List[Dict[str, str]]:
+def get_region_available_services(
+    session: boto3.session.Session, region_code: str
+) -> List[Dict[str, str]]:
     """Get available AWS services for a specific region.
 
     Uses the Service Quotas API to get a comprehensive list of services available
@@ -230,7 +238,9 @@ def get_region_available_services(session: boto3.session.Session, region_code: s
                 break
 
     except Exception as e:
-        logger.debug(f"Error fetching services with Service Quotas API for {region_code}: {e}")
+        logger.debug(
+            f"Error fetching services with Service Quotas API for {region_code}: {e}"
+        )
         # Fall back to the client creation method for a subset of common services
         common_services = [
             "ec2",
@@ -265,7 +275,11 @@ def get_region_available_services(session: boto3.session.Session, region_code: s
                 available_services.append(
                     {
                         "id": service_name,
-                        "name": (service_name.upper() if service_name in ["ec2", "s3"] else service_name.replace("-", " ").title()),
+                        "name": (
+                            service_name.upper()
+                            if service_name in ["ec2", "s3"]
+                            else service_name.replace("-", " ").title()
+                        ),
                     }
                 )
             except Exception:
@@ -386,7 +400,10 @@ def get_region_details(region_code: str) -> Dict[str, Any]:
         "geographic_location": _get_region_geographic_location(region_code),
         "availability_zones": [],
         "services": [],
-        "is_current": region_code == os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")),
+        "is_current": region_code
+        == os.environ.get(
+            "AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        ),
     }
 
     try:
@@ -396,7 +413,9 @@ def get_region_details(region_code: str) -> Dict[str, Any]:
         # Get availability zones
         try:
             ec2 = session.client("ec2", region_name=region_code)
-            response = ec2.describe_availability_zones(Filters=[{"Name": "region-name", "Values": [region_code]}])
+            response = ec2.describe_availability_zones(
+                Filters=[{"Name": "region-name", "Values": [region_code]}]
+            )
 
             azs = []
             for az in response.get("AvailabilityZones", []):
@@ -434,7 +453,9 @@ def get_aws_environment() -> Dict[str, str]:
     """
     env_info = {
         "aws_profile": os.environ.get("AWS_PROFILE", "default"),
-        "aws_region": os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")),
+        "aws_region": os.environ.get(
+            "AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        ),
         "has_credentials": False,
         "credentials_source": "none",
     }
@@ -466,23 +487,6 @@ def get_aws_environment() -> Dict[str, str]:
     return env_info
 
 
-def _mask_key(key: str) -> str:
-    """Mask a sensitive key for security.
-
-    Args:
-        key: The key to mask
-
-    Returns:
-        Masked key with only the first few characters visible
-    """
-    if not key:
-        return ""
-
-    # Show only first few characters
-    visible_len = min(3, len(key))
-    return key[:visible_len] + "*" * (len(key) - visible_len)
-
-
 def get_aws_account_info() -> Dict[str, Optional[str]]:
     """Get information about the current AWS account.
 
@@ -501,7 +505,11 @@ def get_aws_account_info() -> Dict[str, Optional[str]]:
     try:
         # Create a session - boto3 will automatically use credentials from
         # environment variables if no config file is available
-        session = boto3.session.Session(region_name=os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")))
+        session = boto3.session.Session(
+            region_name=os.environ.get(
+                "AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+            )
+        )
 
         # Get account ID from STS
         sts = session.client("sts")
@@ -524,12 +532,16 @@ def get_aws_account_info() -> Dict[str, Optional[str]]:
                 # First try to get organization info
                 try:
                     org_response = org.describe_organization()
-                    if "OrganizationId" in org_response:
-                        account_info["organization_id"] = org_response["OrganizationId"]
+                    org_data = org_response.get("Organization", {})
+                    if org_id := org_data.get("Id"):
+                        account_info["organization_id"] = org_id
                 except Exception:
                     # Then try to get account-specific info if org-level call fails
                     account_response = org.describe_account(AccountId=account_id)
-                    if "Account" in account_response and "Id" in account_response["Account"]:
+                    if (
+                        "Account" in account_response
+                        and "Id" in account_response["Account"]
+                    ):
                         # The account ID itself isn't the organization ID, but we might
                         # be able to extract information from other means
                         account_info["account_id"] = account_response["Account"]["Id"]
@@ -567,7 +579,12 @@ def register_resources(mcp):
         """
         profiles = get_aws_profiles()
         current_profile = os.environ.get("AWS_PROFILE", "default")
-        return {"profiles": [{"name": profile, "is_current": profile == current_profile} for profile in profiles]}
+        return {
+            "profiles": [
+                {"name": profile, "is_current": profile == current_profile}
+                for profile in profiles
+            ]
+        }
 
     @mcp.resource(
         name="aws_regions",
@@ -585,7 +602,9 @@ def register_resources(mcp):
             Dictionary with region information
         """
         regions = get_aws_regions()
-        current_region = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
+        current_region = os.environ.get(
+            "AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        )
         return {
             "regions": [
                 {

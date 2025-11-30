@@ -13,7 +13,6 @@ from botocore.exceptions import ClientError
 from aws_mcp_server.resources import (
     _get_region_description,
     _get_region_geographic_location,
-    _mask_key,
     get_aws_account_info,
     get_aws_environment,
     get_aws_profiles,
@@ -32,7 +31,9 @@ def mock_config_files(monkeypatch, tmp_path):
 
     # Create mock config file
     config_file = config_dir / "config"
-    config_file.write_text("[default]\nregion = us-west-2\n\n[profile dev]\nregion = us-east-1\n\n[profile prod]\nregion = eu-west-1\n")
+    config_file.write_text(
+        "[default]\nregion = us-west-2\n\n[profile dev]\nregion = us-east-1\n\n[profile prod]\nregion = eu-west-1\n"
+    )
 
     # Create mock credentials file
     creds_file = config_dir / "credentials"
@@ -66,7 +67,9 @@ def test_get_aws_profiles(mock_config_files):
 def test_get_aws_profiles_custom_config_file(monkeypatch, tmp_path):
     """Test get_aws_profiles with custom AWS_CONFIG_FILE."""
     custom_config = tmp_path / "custom_config"
-    custom_config.write_text("[default]\nregion = us-west-2\n\n[profile custom-profile]\nregion = eu-west-1\n")
+    custom_config.write_text(
+        "[default]\nregion = us-west-2\n\n[profile custom-profile]\nregion = eu-west-1\n"
+    )
 
     monkeypatch.setenv("AWS_CONFIG_FILE", str(custom_config))
     # Ensure no default credentials file exists
@@ -106,7 +109,9 @@ def test_get_aws_profiles_both_custom_paths(monkeypatch, tmp_path):
     custom_config.write_text("[profile config-only-profile]\nregion = us-west-2\n")
 
     custom_creds = tmp_path / "custom_credentials"
-    custom_creds.write_text("[creds-only-profile]\naws_access_key_id = AKIATEST\naws_secret_access_key = secret\n")
+    custom_creds.write_text(
+        "[creds-only-profile]\naws_access_key_id = AKIATEST\naws_secret_access_key = secret\n"
+    )
 
     monkeypatch.setenv("AWS_CONFIG_FILE", str(custom_config))
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(custom_creds))
@@ -224,7 +229,9 @@ def test_get_aws_account_info(mock_session):
     # Mock API responses
     mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
     mock_iam.list_account_aliases.return_value = {"AccountAliases": ["my-account"]}
-    mock_org.describe_organization.return_value = {"OrganizationId": "o-abcdef1234"}
+    mock_org.describe_organization.return_value = {
+        "Organization": {"Id": "o-abcdef1234"}
+    }
 
     account_info = get_aws_account_info()
 
@@ -326,22 +333,6 @@ def test_get_region_description():
     assert _get_region_description("test-region-2") == "AWS Region test-region-2"
 
 
-def test_mask_key():
-    """Test the key masking utility function."""
-    # Test empty input
-    assert _mask_key("") == ""
-
-    # Test short keys (less than 3 chars)
-    assert _mask_key("a") == "a"
-    assert _mask_key("ab") == "ab"
-
-    # Test longer keys
-    assert _mask_key("abc") == "abc"
-    assert _mask_key("abcd") == "abc*"
-    assert _mask_key("abcdef") == "abc***"
-    assert _mask_key("AKIAIOSFODNN7EXAMPLE") == "AKI*****************"
-
-
 @patch("configparser.ConfigParser")
 @patch("os.path.exists")
 def test_get_aws_profiles_exception(mock_exists, mock_config_parser):
@@ -412,7 +403,9 @@ def test_get_aws_environment_credential_methods(mock_session):
 def test_get_aws_environment_exception(mock_session):
     """Test exception handling in get_aws_environment."""
     # Mock boto3 to raise an exception
-    mock_session.return_value.get_credentials.side_effect = Exception("Credential error")
+    mock_session.return_value.get_credentials.side_effect = Exception(
+        "Credential error"
+    )
 
     # Call function
     env_info = get_aws_environment()
@@ -442,8 +435,8 @@ def test_get_aws_account_info_with_org(mock_session):
     mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
     mock_iam.list_account_aliases.return_value = {"AccountAliases": ["my-account"]}
 
-    # Mock org response for describe_organization
-    mock_org.describe_organization.return_value = {"OrganizationId": None}
+    # Mock org response for describe_organization (empty Organization means no Id)
+    mock_org.describe_organization.return_value = {"Organization": {}}
 
     # Call function
     account_info = get_aws_account_info()
@@ -484,7 +477,12 @@ def test_resource_aws_profiles(mock_environ_get, mock_get_aws_profiles):
     async def mock_resource_function():
         profiles = mock_get_aws_profiles.return_value
         current_profile = mock_environ_get.return_value
-        return {"profiles": [{"name": profile, "is_current": profile == current_profile} for profile in profiles]}
+        return {
+            "profiles": [
+                {"name": profile, "is_current": profile == current_profile}
+                for profile in profiles
+            ]
+        }
 
     # Call the function
     import asyncio
@@ -509,7 +507,9 @@ def test_resource_aws_profiles(mock_environ_get, mock_get_aws_profiles):
 def test_resource_aws_regions(mock_environ_get, mock_get_aws_regions):
     """Test the aws_regions resource function implementation."""
     # Set up environment mocks to return us-west-2 for either AWS_REGION or AWS_DEFAULT_REGION
-    mock_environ_get.side_effect = lambda key, default=None: ("us-west-2" if key in ("AWS_REGION", "AWS_DEFAULT_REGION") else default)
+    mock_environ_get.side_effect = lambda key, default=None: (
+        "us-west-2" if key in ("AWS_REGION", "AWS_DEFAULT_REGION") else default
+    )
 
     # Set up regions mock
     mock_get_aws_regions.return_value = [
@@ -804,12 +804,16 @@ def test_get_region_details(mock_session, mock_get_region_available_services):
 
     # Verify services
     assert region_details["services"] == mock_services
-    mock_get_region_available_services.assert_called_once_with(mock_session.return_value, "us-east-1")
+    mock_get_region_available_services.assert_called_once_with(
+        mock_session.return_value, "us-east-1"
+    )
 
 
 @patch("aws_mcp_server.resources.get_region_available_services")
 @patch("boto3.session.Session")
-def test_get_region_details_with_error(mock_session, mock_get_region_available_services):
+def test_get_region_details_with_error(
+    mock_session, mock_get_region_available_services
+):
     """Test region details with API errors."""
     # Mock boto3 to raise an exception
     mock_session.return_value.client.side_effect = ClientError(
@@ -829,7 +833,9 @@ def test_get_region_details_with_error(mock_session, mock_get_region_available_s
     assert "geographic_location" in region_details
     assert len(region_details["availability_zones"]) == 0
     assert region_details["services"] == []
-    mock_get_region_available_services.assert_called_once_with(mock_session.return_value, "us-east-1")
+    mock_get_region_available_services.assert_called_once_with(
+        mock_session.return_value, "us-east-1"
+    )
 
 
 @patch("aws_mcp_server.resources.get_region_details")
