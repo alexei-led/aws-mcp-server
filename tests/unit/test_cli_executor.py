@@ -448,32 +448,179 @@ async def test_execute_aws_command_exit_codes(exit_code, stderr, expected_status
 
 
 @pytest.mark.parametrize(
-    "stderr,command,expected_hint",
+    "stderr,command,stdout,expected_hint",
     [
-        ("", "aws s3 ls", "Command failed with no error output"),
-        ("bash: jq: command not found", "aws s3 ls | jq", "not installed"),
-        ("invalid choice: 'xyz'", "aws s3 xyz", "aws_cli_help"),
-        ("unknown command: xyz", "aws xyz", "aws_cli_help"),
+        ("", "aws s3 ls", "", "Command failed with no error output"),
+        ("", "aws s3 ls", "Error from stdout", "Error from stdout"),
+        ("bash: jq: command not found", "aws s3 ls | jq", "", "not installed"),
+        ("invalid choice: 'xyz'", "aws s3 xyz", "", "aws_cli_help"),
+        ("unknown command: xyz", "aws xyz", "", "aws_cli_help"),
         (
             "error: argument --bucket: missing required value",
             "aws s3 ls",
+            "",
             "aws_cli_help",
         ),
-        ("required argument --name", "aws lambda create-function", "aws_cli_help"),
-        ("InvalidParameterValue: The value is not valid", "aws ec2 run", "values"),
-        ("ValidationError: invalid parameter", "aws ec2 run", "values"),
+        ("required argument --name", "aws lambda create-function", "", "aws_cli_help"),
+        ("InvalidParameterValue: The value is not valid", "aws ec2 run", "", "values"),
+        ("ValidationError: invalid parameter", "aws ec2 run", "", "values"),
         (
             "ResourceNotFoundException: Bucket does not exist",
             "aws s3 ls",
+            "",
             "does not exist",
         ),
-        ("NoSuchBucket: mybucket", "aws s3 ls", "does not exist"),
-        ("ThrottlingException: Rate exceeded", "aws ec2", "rate limit"),
-        ("Rate exceeded, please try again", "aws ec2", "rate limit"),
-        ("Some random error message", "aws s3 ls", "Some random error message"),
+        ("NoSuchBucket: mybucket", "aws s3 ls", "", "does not exist"),
+        ("ThrottlingException: Rate exceeded", "aws ec2", "", "rate limit"),
+        ("Rate exceeded, please try again", "aws ec2", "", "rate limit"),
+        ("Some random error message", "aws s3 ls", "", "Some random error message"),
     ],
 )
-def test_format_error_message(stderr, command, expected_hint):
-    """Test format_error_message provides helpful hints for LLM self-correction."""
-    result = format_error_message(stderr, command)
+def test_format_error_message(stderr, command, stdout, expected_hint):
+    result = format_error_message(stderr, command, stdout)
     assert expected_hint in result
+
+
+class TestAddEc2RegionIfNeeded:
+    """Tests for _add_ec2_region_if_needed helper function."""
+
+    @pytest.mark.parametrize(
+        "command,should_add_region",
+        [
+            ("aws ec2 describe-instances", True),
+            ("aws ec2 run-instances --instance-type t2.micro", True),
+            ("aws ec2 describe-instances --region us-west-2", False),
+            ("aws ec2 describe-instances --region=us-west-2", False),
+            ("aws s3 ls", False),
+            ("aws lambda list-functions", False),
+        ],
+        ids=[
+            "ec2_no_region",
+            "ec2_with_other_args",
+            "ec2_region_separate",
+            "ec2_region_equals",
+            "s3_no_change",
+            "lambda_no_change",
+        ],
+    )
+    def test_region_handling(self, command, should_add_region):
+        from aws_mcp_server.cli_executor import _add_ec2_region_if_needed
+        from aws_mcp_server.config import AWS_REGION
+
+        result = _add_ec2_region_if_needed(command)
+
+        if should_add_region:
+            assert f"--region {AWS_REGION}" in result
+        else:
+            assert result == command
+
+
+class TestProcessOutput:
+    """Tests for _process_output helper function."""
+
+    @pytest.mark.parametrize(
+        "stdout,stderr,returncode,command,expected_status,output_check",
+        [
+            (b"Success", b"", 0, "aws s3 ls", "success", lambda o: o == "Success"),
+            (b"", b"Error", 1, "aws s3 ls", "error", lambda o: "Error" in o),
+            (
+                b"",
+                b"Unable to locate credentials",
+                1,
+                "aws s3 ls",
+                "error",
+                lambda o: "Authentication error" in o,
+            ),
+            (
+                b"\xff\xfe",
+                b"",
+                0,
+                "aws s3 ls",
+                "success",
+                lambda o: True,
+            ),
+            (
+                b"Error from stdout",
+                b"",
+                1,
+                "aws s3 ls",
+                "error",
+                lambda o: "Error from stdout" in o,
+            ),
+        ],
+        ids=[
+            "success_output",
+            "error_output",
+            "auth_error",
+            "binary_decode_replace",
+            "error_in_stdout",
+        ],
+    )
+    def test_output_processing(self, stdout, stderr, returncode, command, expected_status, output_check):
+        from aws_mcp_server.cli_executor import _process_output
+
+        result = _process_output(stdout, stderr, returncode, command)
+
+        assert result["status"] == expected_status
+        assert output_check(result["output"])
+
+    def test_output_truncation(self):
+        from aws_mcp_server.cli_executor import _process_output
+
+        large_output = ("x" * (MAX_OUTPUT_SIZE + 1000)).encode("utf-8")
+        result = _process_output(large_output, b"", 0, "aws s3 ls")
+
+        assert result["status"] == "success"
+        assert len(result["output"]) <= MAX_OUTPUT_SIZE + 100
+        assert "truncated" in result["output"]
+
+
+class TestSandboxErrorHandling:
+    """Tests for SandboxError handling in command execution."""
+
+    @pytest.mark.asyncio
+    async def test_execute_aws_command_sandbox_error(self):
+        from aws_mcp_server.sandbox import SandboxError
+
+        with patch(
+            "aws_mcp_server.cli_executor.execute_sandboxed_async",
+            new_callable=AsyncMock,
+        ) as mock_sandbox:
+            mock_sandbox.side_effect = SandboxError("sandbox violation")
+
+            with pytest.raises(CommandExecutionError) as excinfo:
+                await execute_aws_command("aws s3 ls")
+
+            assert "Sandbox execution error" in str(excinfo.value)
+            assert "blocked by the OS-level sandbox" in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_execute_pipe_command_sandbox_error(self):
+        from aws_mcp_server.sandbox import SandboxError
+
+        with patch(
+            "aws_mcp_server.cli_executor.execute_piped_sandboxed_async",
+            new_callable=AsyncMock,
+        ) as mock_sandbox:
+            mock_sandbox.side_effect = SandboxError("sandbox violation")
+
+            with pytest.raises(CommandExecutionError) as excinfo:
+                await execute_pipe_command("aws s3 ls | grep bucket")
+
+            assert "Sandbox execution error" in str(excinfo.value)
+            assert "piped command was blocked" in str(excinfo.value)
+
+
+class TestCancelledErrorHandling:
+    """Tests for CancelledError handling (re-raised, not caught)."""
+
+    @pytest.mark.asyncio
+    async def test_execute_aws_command_cancelled_error(self):
+        with patch(
+            "aws_mcp_server.cli_executor.execute_sandboxed_async",
+            new_callable=AsyncMock,
+        ) as mock_sandbox:
+            mock_sandbox.side_effect = asyncio.CancelledError()
+
+            with pytest.raises(asyncio.CancelledError):
+                await execute_aws_command("aws s3 ls")

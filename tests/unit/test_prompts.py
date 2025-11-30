@@ -1,7 +1,4 @@
-"""Unit tests for AWS MCP Server prompts.
-
-Tests the prompt templates functionality in the AWS MCP Server.
-"""
+"""Unit tests for AWS MCP Server prompts."""
 
 from unittest.mock import MagicMock
 
@@ -12,13 +9,9 @@ from aws_mcp_server.prompts import register_prompts
 
 @pytest.fixture
 def prompt_functions():
-    """Fixture that returns a dictionary of prompt functions.
-
-    This fixture captures all prompt functions registered with the MCP instance.
-    """
+    """Fixture that returns a dictionary of prompt functions."""
     captured_functions = {}
 
-    # Create a special mock decorator that captures the functions
     def mock_prompt_decorator(*args, **kwargs):
         def decorator(func):
             captured_functions[func.__name__] = func
@@ -29,7 +22,6 @@ def prompt_functions():
     mock_mcp = MagicMock()
     mock_mcp.prompt = mock_prompt_decorator
 
-    # Register prompts with our special mock
     register_prompts(mock_mcp)
 
     return captured_functions
@@ -37,7 +29,6 @@ def prompt_functions():
 
 def test_prompt_registration(prompt_functions):
     """Test that prompts are registered correctly."""
-    # All expected prompt names
     expected_prompt_names = [
         "create_resource",
         "security_audit",
@@ -58,10 +49,8 @@ def test_prompt_registration(prompt_functions):
         "multi_account_governance",
     ]
 
-    # Check that we captured the expected number of functions
     assert len(prompt_functions) == len(expected_prompt_names), f"Expected {len(expected_prompt_names)} prompts, got {len(prompt_functions)}"
 
-    # Check that all expected prompts are registered
     for prompt_name in expected_prompt_names:
         assert prompt_name in prompt_functions, f"Expected prompt '{prompt_name}' not found"
 
@@ -164,13 +153,10 @@ def test_prompt_registration(prompt_functions):
 )
 def test_prompt_templates(prompt_functions, prompt_name, args, expected_content):
     """Test all prompt templates with various inputs using parametrized tests."""
-    # Get the captured function
     prompt_func = prompt_functions.get(prompt_name)
     assert prompt_func is not None, f"{prompt_name} prompt not found"
 
-    # Test prompt output with the specified arguments
     prompt_text = prompt_func(**args)
 
-    # Check for expected content
     for content in expected_content:
         assert content.lower() in prompt_text.lower(), f"Expected '{content}' in {prompt_name} output"

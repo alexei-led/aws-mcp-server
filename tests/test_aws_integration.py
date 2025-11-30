@@ -1,13 +1,6 @@
-"""Simple test to verify AWS integration setup."""
+"""Test to verify AWS integration setup."""
 
 import pytest
-
-
-@pytest.mark.integration
-def test_aws_credentials(ensure_aws_credentials):
-    """Test that AWS credentials fixture works."""
-    print("AWS credentials test is running!")
-    assert True
 
 
 @pytest.mark.integration

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# AWS-related environment variables that may be passed through
+# AWS environment variables passed through to sandboxed processes
 AWS_ENV_VARS = [
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -48,7 +48,7 @@ AWS_ENV_VARS = [
     "AWS_METADATA_SERVICE_NUM_ATTEMPTS",
 ]
 
-# Subset containing only secret-bearing variables
+# Secret-bearing variables excluded when pass_aws_env=False
 AWS_SECRET_ENV_VARS = {
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -68,39 +68,38 @@ def get_aws_credential_paths() -> list[str]:
     """
     paths: list[str] = []
 
-    # Default AWS config directory (directory access for backward compat)
+    # Default ~/.aws directory (backward compat)
     default_aws_dir = Path.home() / ".aws"
     if default_aws_dir.exists():
         paths.append(str(default_aws_dir))
 
-    # Custom credentials file (file-only access)
+    # Custom credentials file
     creds_file = os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
     if creds_file:
         creds_path = Path(creds_file)
         if creds_path.exists():
             paths.append(str(creds_path))
 
-    # Custom config file (file-only access)
+    # Custom config file
     config_file = os.environ.get("AWS_CONFIG_FILE")
     if config_file:
         config_path = Path(config_file)
         if config_path.exists():
             paths.append(str(config_path))
 
-    # Web identity token file for EKS IRSA (file-only access)
+    # Web identity token file (EKS IRSA)
     token_file = os.environ.get("AWS_WEB_IDENTITY_TOKEN_FILE")
     if token_file:
         token_path = Path(token_file)
         if token_path.exists():
             paths.append(str(token_path))
 
-    # Deduplicate while preserving order
     seen: set[str] = set()
     unique_paths: list[str] = []
-    for p in paths:
-        if p not in seen:
-            seen.add(p)
-            unique_paths.append(p)
+    for path in paths:
+        if path not in seen:
+            seen.add(path)
+            unique_paths.append(path)
     return unique_paths
 
 
@@ -268,7 +267,6 @@ class LinuxLandlockBackend(SandboxBackend):
             self._available = False
             return False
 
-        # Check kernel version (need 5.13+)
         try:
             release = platform.release()
             major, minor = map(int, release.split(".")[:2])
@@ -281,7 +279,6 @@ class LinuxLandlockBackend(SandboxBackend):
             self._available = False
             return False
 
-        # Try to import landlock module
         try:
             import landlock
 
@@ -307,7 +304,7 @@ class LinuxLandlockBackend(SandboxBackend):
         if not self.is_available():
             raise SandboxError("Landlock is not available")
 
-        # Import here to avoid import errors on non-Linux
+        # Import here to avoid errors on non-Linux
         import landlock
 
         def setup_sandbox():
@@ -315,23 +312,20 @@ class LinuxLandlockBackend(SandboxBackend):
             try:
                 rs = landlock.Ruleset()
 
-                # Add read-only paths
                 for path in config.read_paths:
                     if os.path.exists(path):
                         rs.allow(path)
 
-                # Add AWS credential paths if allowed (includes custom paths from env vars)
+                # AWS credential paths (includes custom paths from env vars)
                 if config.allow_aws_config:
                     for aws_path in get_aws_credential_paths():
                         if os.path.exists(aws_path):
                             rs.allow(aws_path)
 
-                # Add writable paths
                 for path in config.write_paths:
                     if os.path.exists(path):
                         rs.allow(path, write=True)
 
-                # Apply the ruleset
                 rs.apply()
             except Exception as e:
                 if sandbox_mode == "required":
@@ -384,23 +378,20 @@ class LinuxBubblewrapBackend(SandboxBackend):
         """Build bwrap command line arguments."""
         args = [self._bwrap_path]
 
-        # Add read-only binds
         for path in config.read_paths:
             if os.path.exists(path):
                 args.extend(["--ro-bind", path, path])
 
-        # Add AWS credential paths if allowed (includes custom paths from env vars)
+        # AWS credential paths (includes custom paths from env vars)
         if config.allow_aws_config:
             for aws_path in get_aws_credential_paths():
                 if os.path.exists(aws_path):
                     args.extend(["--ro-bind", aws_path, aws_path])
 
-        # Add writable binds
         for path in config.write_paths:
             if os.path.exists(path):
                 args.extend(["--bind", path, path])
 
-        # Add essential mounts
         args.extend(
             [
                 "--proc",
@@ -410,20 +401,16 @@ class LinuxBubblewrapBackend(SandboxBackend):
             ]
         )
 
-        # PID namespace isolation
+        # Security: PID namespace isolation
         args.append("--unshare-pid")
-
-        # Prevent TTY injection
+        # Security: Prevent TTY injection attacks
         args.append("--new-session")
-
-        # Kill sandbox if parent dies
+        # Security: Kill sandbox if parent dies
         args.append("--die-with-parent")
 
-        # Network access
         if not config.allow_network:
             args.append("--unshare-net")
 
-        # Add separator
         args.append("--")
 
         return args
@@ -462,7 +449,6 @@ class MacOSSeatbeltBackend(SandboxBackend):
     Firefox, and other major applications.
     """
 
-    # Seatbelt profile template
     PROFILE_TEMPLATE = """
 (version 1)
 (deny default)
@@ -547,11 +533,11 @@ class MacOSSeatbeltBackend(SandboxBackend):
         if config.allow_aws_config:
             aws_paths = get_aws_credential_paths()
             rules = []
-            for p in aws_paths:
-                if os.path.isdir(p):
-                    rules.append(f'(allow file-read* (subpath "{p}"))')
+            for aws_path in aws_paths:
+                if os.path.isdir(aws_path):
+                    rules.append(f'(allow file-read* (subpath "{aws_path}"))')
                 else:
-                    rules.append(f'(allow file-read* (literal "{p}"))')
+                    rules.append(f'(allow file-read* (literal "{aws_path}"))')
             aws_config_rule = "\n".join(rules) if rules else "; No AWS paths"
         else:
             aws_config_rule = "; AWS config access disabled"
@@ -670,13 +656,13 @@ class Sandbox:
         system = platform.system()
 
         if system == "Linux":
-            # Try Landlock first (preferred)
+            # Landlock preferred (kernel-level, no external dependencies)
             landlock_backend = LinuxLandlockBackend()
             if landlock_backend.is_available():
                 logger.info("Using Landlock sandbox backend")
                 return landlock_backend
 
-            # Fall back to bubblewrap
+            # Bubblewrap fallback
             bwrap = LinuxBubblewrapBackend()
             if bwrap.is_available():
                 logger.info("Using Bubblewrap sandbox backend")
@@ -695,7 +681,6 @@ class Sandbox:
         else:
             logger.warning(f"No sandbox support for {system}")
 
-        # Fall back to no-op
         if sandbox_mode == "required":
             raise SandboxError(f"Sandbox required but not available on {system}")
 
@@ -750,10 +735,9 @@ def get_sandbox() -> Sandbox:
     """Get the default sandbox instance."""
     global _default_sandbox
     if _default_sandbox is None:
-        # Import here to avoid circular imports
+        # Avoid circular imports
         from aws_mcp_server.config import SANDBOX_CREDENTIAL_MODE, SANDBOX_MODE
 
-        # Configure based on settings
         config = SandboxConfig(
             allow_aws_config=(SANDBOX_CREDENTIAL_MODE in ("aws_config", "both")),
             pass_aws_env=(SANDBOX_CREDENTIAL_MODE in ("env", "both")),

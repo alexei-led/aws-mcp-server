@@ -23,7 +23,6 @@ from aws_mcp_server.sandbox import (
     sandbox_available,
 )
 
-# Platform detection helpers
 IS_LINUX = sys.platform.startswith("linux")
 IS_MACOS = sys.platform == "darwin"
 
