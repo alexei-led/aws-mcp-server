@@ -6,7 +6,7 @@ A lightweight service that enables AI assistants to execute AWS CLI commands thr
 from importlib.metadata import PackageNotFoundError, version
 
 try:
-    __version__ = version("aws-mcp-server")
+    __version__ = version("aws-mcp")
 except PackageNotFoundError:
     # package is not installed
     pass
