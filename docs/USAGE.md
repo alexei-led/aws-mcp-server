@@ -13,7 +13,7 @@ This guide details how to use the AWS MCP Server with AI assistants like Claude 
 
 ## Getting Started
 
-You can run the AWS MCP Server using Docker (recommended) or Python.
+You can run the AWS MCP Server using Docker (recommended), uvx, or pip.
 
 ### Docker (Recommended)
 
@@ -23,12 +23,19 @@ docker run -i --rm \
   ghcr.io/alexei-led/aws-mcp-server:latest
 ```
 
-### Python
+### uvx (Quick)
 
 ```bash
 # Requires Python 3.13+ and AWS CLI installed
-pip install aws-mcp-server
-python -m aws_mcp_server
+uvx alexei-led.aws-mcp-server
+```
+
+### pip
+
+```bash
+# Requires Python 3.13+ and AWS CLI installed
+pip install alexei-led.aws-mcp-server
+aws-mcp-server
 ```
 
 See the [README](../README.md) for full installation and configuration details.
@@ -37,8 +44,23 @@ See the [README](../README.md) for full installation and configuration details.
 
 To use this server with Claude Desktop, add it to your configuration file:
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+### Using uvx (Recommended)
+
+```json
+{
+  "mcpServers": {
+    "aws": {
+      "command": "uvx",
+      "args": ["alexei-led.aws-mcp-server"]
+    }
+  }
+}
+```
+
+### Using Docker
 
 ```json
 {

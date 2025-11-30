@@ -1,6 +1,7 @@
 # AWS Model Context Protocol (MCP) Server
 
 [![CI](https://github.com/alexei-led/aws-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/alexei-led/aws-mcp-server/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/alexei-led.aws-mcp-server)](https://pypi.org/project/alexei-led.aws-mcp-server/)
 [![Code Coverage](https://codecov.io/gh/alexei-led/aws-mcp-server/branch/main/graph/badge.svg?token=K8vdP3zyuy)](https://codecov.io/gh/alexei-led/aws-mcp-server)
 [![Linter: Ruff](https://img.shields.io/badge/Linter-Ruff-brightgreen?style=flat-square)](https://github.com/alexei-led/aws-mcp-server)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-aws--mcp--server-blue?logo=docker)](https://github.com/alexei-led/aws-mcp-server/pkgs/container/aws-mcp-server)
@@ -79,13 +80,21 @@ docker run -i --rm \
 
 The image supports both AMD64 and ARM64 (Apple Silicon/Graviton).
 
-### Option 2: Using Python
+### Option 2: Using uvx (Quick)
+
+Run directly without installation:
+
+```bash
+uvx alexei-led.aws-mcp-server
+```
+
+### Option 3: Using pip
 
 **Caution:** Running natively requires careful environment setup. Review [Security Considerations](#security-considerations).
 
 ```bash
-pip install aws-mcp-server
-python -m aws_mcp_server
+pip install alexei-led.aws-mcp-server
+aws-mcp-server
 ```
 
 ## Configuration
