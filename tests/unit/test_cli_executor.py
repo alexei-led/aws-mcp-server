@@ -448,33 +448,36 @@ async def test_execute_aws_command_exit_codes(exit_code, stderr, expected_status
 
 
 @pytest.mark.parametrize(
-    "stderr,command,expected_hint",
+    "stderr,command,stdout,expected_hint",
     [
-        ("", "aws s3 ls", "Command failed with no error output"),
-        ("bash: jq: command not found", "aws s3 ls | jq", "not installed"),
-        ("invalid choice: 'xyz'", "aws s3 xyz", "aws_cli_help"),
-        ("unknown command: xyz", "aws xyz", "aws_cli_help"),
+        ("", "aws s3 ls", "", "Command failed with no error output"),
+        ("", "aws s3 ls", "Error from stdout", "Error from stdout"),
+        ("bash: jq: command not found", "aws s3 ls | jq", "", "not installed"),
+        ("invalid choice: 'xyz'", "aws s3 xyz", "", "aws_cli_help"),
+        ("unknown command: xyz", "aws xyz", "", "aws_cli_help"),
         (
             "error: argument --bucket: missing required value",
             "aws s3 ls",
+            "",
             "aws_cli_help",
         ),
-        ("required argument --name", "aws lambda create-function", "aws_cli_help"),
-        ("InvalidParameterValue: The value is not valid", "aws ec2 run", "values"),
-        ("ValidationError: invalid parameter", "aws ec2 run", "values"),
+        ("required argument --name", "aws lambda create-function", "", "aws_cli_help"),
+        ("InvalidParameterValue: The value is not valid", "aws ec2 run", "", "values"),
+        ("ValidationError: invalid parameter", "aws ec2 run", "", "values"),
         (
             "ResourceNotFoundException: Bucket does not exist",
             "aws s3 ls",
+            "",
             "does not exist",
         ),
-        ("NoSuchBucket: mybucket", "aws s3 ls", "does not exist"),
-        ("ThrottlingException: Rate exceeded", "aws ec2", "rate limit"),
-        ("Rate exceeded, please try again", "aws ec2", "rate limit"),
-        ("Some random error message", "aws s3 ls", "Some random error message"),
+        ("NoSuchBucket: mybucket", "aws s3 ls", "", "does not exist"),
+        ("ThrottlingException: Rate exceeded", "aws ec2", "", "rate limit"),
+        ("Rate exceeded, please try again", "aws ec2", "", "rate limit"),
+        ("Some random error message", "aws s3 ls", "", "Some random error message"),
     ],
 )
-def test_format_error_message(stderr, command, expected_hint):
-    result = format_error_message(stderr, command)
+def test_format_error_message(stderr, command, stdout, expected_hint):
+    result = format_error_message(stderr, command, stdout)
     assert expected_hint in result
 
 
@@ -536,12 +539,21 @@ class TestProcessOutput:
                 "success",
                 lambda o: True,
             ),
+            (
+                b"Error from stdout",
+                b"",
+                1,
+                "aws s3 ls",
+                "error",
+                lambda o: "Error from stdout" in o,
+            ),
         ],
         ids=[
             "success_output",
             "error_output",
             "auth_error",
             "binary_decode_replace",
+            "error_in_stdout",
         ],
     )
     def test_output_processing(self, stdout, stderr, returncode, command, expected_status, output_check):

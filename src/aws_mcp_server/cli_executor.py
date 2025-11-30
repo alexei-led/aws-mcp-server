@@ -57,9 +57,11 @@ def is_auth_error(error_output: str) -> bool:
     return any(pattern in error_output for pattern in auth_error_patterns)
 
 
-def format_error_message(stderr_str: str, command: str) -> str:
+def format_error_message(stderr_str: str, command: str, stdout_str: str = "") -> str:
     """Format error messages to be helpful for LLM self-correction."""
     if not stderr_str:
+        if stdout_str:
+            return f"Command failed. Output: {stdout_str}"
         return f"Command failed with no error output. Command: '{command}'"
 
     if "command not found" in stderr_str.lower():
@@ -131,7 +133,7 @@ def _process_output(stdout: bytes, stderr: bytes, returncode: int, command: str)
             )
         return CommandResult(
             status="error",
-            output=format_error_message(stderr_str, command),
+            output=format_error_message(stderr_str, command, stdout_str),
         )
 
     return CommandResult(status="success", output=stdout_str)
