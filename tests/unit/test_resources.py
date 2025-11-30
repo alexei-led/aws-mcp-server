@@ -13,7 +13,6 @@ from botocore.exceptions import ClientError
 from aws_mcp_server.resources import (
     _get_region_description,
     _get_region_geographic_location,
-    _mask_key,
     get_aws_account_info,
     get_aws_environment,
     get_aws_profiles,
@@ -224,7 +223,7 @@ def test_get_aws_account_info(mock_session):
     # Mock API responses
     mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
     mock_iam.list_account_aliases.return_value = {"AccountAliases": ["my-account"]}
-    mock_org.describe_organization.return_value = {"OrganizationId": "o-abcdef1234"}
+    mock_org.describe_organization.return_value = {"Organization": {"Id": "o-abcdef1234"}}
 
     account_info = get_aws_account_info()
 
@@ -324,22 +323,6 @@ def test_get_region_description():
     # Test unknown regions
     assert _get_region_description("unknown-region-1") == "AWS Region unknown-region-1"
     assert _get_region_description("test-region-2") == "AWS Region test-region-2"
-
-
-def test_mask_key():
-    """Test the key masking utility function."""
-    # Test empty input
-    assert _mask_key("") == ""
-
-    # Test short keys (less than 3 chars)
-    assert _mask_key("a") == "a"
-    assert _mask_key("ab") == "ab"
-
-    # Test longer keys
-    assert _mask_key("abc") == "abc"
-    assert _mask_key("abcd") == "abc*"
-    assert _mask_key("abcdef") == "abc***"
-    assert _mask_key("AKIAIOSFODNN7EXAMPLE") == "AKI*****************"
 
 
 @patch("configparser.ConfigParser")
@@ -442,8 +425,8 @@ def test_get_aws_account_info_with_org(mock_session):
     mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
     mock_iam.list_account_aliases.return_value = {"AccountAliases": ["my-account"]}
 
-    # Mock org response for describe_organization
-    mock_org.describe_organization.return_value = {"OrganizationId": None}
+    # Mock org response for describe_organization (empty Organization means no Id)
+    mock_org.describe_organization.return_value = {"Organization": {}}
 
     # Call function
     account_info = get_aws_account_info()

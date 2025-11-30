@@ -179,7 +179,7 @@ def execute_command(command: str, timeout: int = 300) -> str:
         The command output as a string.
 
     Raises:
-        SecurityError: If the command is blocked by security rules.
+        CommandExecutionError: If the command fails to execute.
         TimeoutError: If the command exceeds the timeout.
     """
 ```
@@ -192,9 +192,12 @@ aws-mcp-server/
 │   ├── __init__.py
 │   ├── __main__.py        # Entry point
 │   ├── server.py          # MCP server implementation
-│   ├── cli_executor.py    # AWS CLI execution
-│   ├── security.py        # Command validation
-│   └── sandbox.py         # Sandbox execution
+│   ├── cli_executor.py    # AWS CLI execution with error handling
+│   ├── sandbox.py         # OS-level sandbox execution
+│   ├── tools.py           # Pipe command utilities
+│   ├── config.py          # Configuration settings
+│   ├── resources.py       # MCP resources (profiles, regions)
+│   └── prompts.py         # Prompt templates
 ├── tests/                 # Test files
 │   ├── unit/              # Unit tests
 │   └── integration/       # Integration tests

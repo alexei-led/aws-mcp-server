@@ -16,7 +16,6 @@ from aws_mcp_server.cli_executor import (
     CommandExecutionError,
     CommandHelpResult,
     CommandResult,
-    CommandValidationError,
     check_aws_cli_installed,
     execute_aws_command,
     get_command_help,
@@ -99,29 +98,37 @@ async def aws_cli_help(
 
 @mcp.tool()
 async def aws_cli_pipeline(
-    command: str = Field(description="Full AWS CLI command starting with 'aws'. Can include Unix pipes (|) to filter output with jq, grep, sort, etc."),
+    command: str = Field(description="AWS CLI command, optionally piped to Unix tools for filtering and transformation"),
     timeout: int | None = Field(
         description="Optional timeout in seconds. Default: 300s. Increase for long operations.",
         default=None,
     ),
     ctx: Context | None = None,
 ) -> CommandResult:
-    """Execute any AWS CLI command with optional Unix pipe processing.
+    """Execute AWS CLI commands with Unix pipes for powerful data processing.
 
-    TIPS FOR EFFECTIVE USE:
-    - Use --query for server-side filtering (faster, less data transfer)
-    - Use --output text|json|table to control format
-    - Pipe to jq for complex JSON transformations
-    - Pipe to grep/sort/head for simple filtering
+    LEVERAGE UNIX PIPES for efficient workflows:
+    - jq: JSON parsing and transformation
+    - grep: Pattern matching and filtering
+    - head/tail: Limit output rows
+    - sort/uniq: Order and deduplicate
+    - wc: Count lines, words, characters
+    - cut/awk: Extract specific fields
+    - sed: Text substitution
 
-    COMMON PATTERNS:
-    - List resources: aws s3 ls, aws ec2 describe-instances
-    - Filter with --query: aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId'
-    - JSON processing: aws iam list-users | jq '.Users[].UserName'
-    - Count results: aws s3api list-objects --bucket X | jq '.Contents | length'
+    EXAMPLES:
+    - aws s3 ls
+    - aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId'
+    - aws iam list-users | jq '.Users[].UserName'
+    - aws s3api list-objects --bucket mybucket | jq '.Contents | length'
+    - aws ec2 describe-instances | jq '.Reservations[].Instances[] | {id: .InstanceId, state: .State.Name}'
+    - aws logs filter-log-events --log-group-name /app/logs | jq '.events[].message' | grep ERROR
+    - aws cloudwatch get-metric-statistics ... | jq '.Datapoints | sort_by(.Timestamp)'
 
-    ALLOWED PIPE COMMANDS:
-    jq, grep, sed, awk, sort, uniq, head, tail, wc, cut, tr, tee, xargs
+    TIPS:
+    - Use --query for server-side filtering (faster, less data)
+    - Use --output json for pipe-friendly output
+    - Chain pipes for complex transformations
 
     Returns status ('success' or 'error') and command output.
     """
@@ -129,13 +136,12 @@ async def aws_cli_pipeline(
 
     if ctx:
         is_pipe = "|" in command
-        message = "Executing" + (" piped" if is_pipe else "") + " AWS CLI command"
+        message = "Executing" + (" piped" if is_pipe else "") + " command"
         await ctx.info(message + (f" with timeout: {timeout}s" if timeout else ""))
 
     try:
         result = await execute_aws_command(command, timeout)
 
-        # Format the output for better readability
         if result["status"] == "success":
             if ctx:
                 await ctx.info("Command executed successfully")
@@ -144,9 +150,6 @@ async def aws_cli_pipeline(
                 await ctx.warning("Command failed")
 
         return CommandResult(status=result["status"], output=result["output"])
-    except CommandValidationError as e:
-        logger.warning(f"Command validation error: {e}")
-        return CommandResult(status="error", output=f"Command validation error: {str(e)}")
     except CommandExecutionError as e:
         logger.warning(f"Command execution error: {e}")
         return CommandResult(status="error", output=f"Command execution error: {str(e)}")

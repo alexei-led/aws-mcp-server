@@ -4,8 +4,13 @@ from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 
-from aws_mcp_server.cli_executor import CommandExecutionError, CommandValidationError
-from aws_mcp_server.server import aws_cli_help, aws_cli_pipeline, mcp, run_startup_checks
+from aws_mcp_server.cli_executor import CommandExecutionError
+from aws_mcp_server.server import (
+    aws_cli_help,
+    aws_cli_pipeline,
+    mcp,
+    run_startup_checks,
+)
 
 
 def test_run_startup_checks():
@@ -78,7 +83,10 @@ async def test_aws_cli_help_with_context():
 @pytest.mark.asyncio
 async def test_aws_cli_help_exception_handling():
     """Test exception handling in aws_cli_help."""
-    with patch("aws_mcp_server.server.get_command_help", side_effect=Exception("Test exception")):
+    with patch(
+        "aws_mcp_server.server.get_command_help",
+        side_effect=Exception("Test exception"),
+    ):
         result = await aws_cli_help(service="s3")
 
         assert "help_text" in result
@@ -95,7 +103,11 @@ async def test_aws_cli_help_exception_handling():
         # Success with custom timeout
         ("aws s3 ls", 60, {"status": "success", "output": "Test output"}),
         # Complex command success
-        ("aws ec2 describe-instances --filters Name=instance-state-name,Values=running", None, {"status": "success", "output": "Running instances"}),
+        (
+            "aws ec2 describe-instances --filters Name=instance-state-name,Values=running",
+            None,
+            {"status": "success", "output": "Running instances"},
+        ),
     ],
 )
 async def test_aws_cli_pipeline_success(command, timeout, expected_result):
@@ -135,7 +147,7 @@ async def test_aws_cli_pipeline_with_context():
 
             # Verify context was used correctly
             assert mock_ctx.info.call_count == 2
-            assert "Executing AWS CLI command" in mock_ctx.info.call_args_list[0][0][0]
+            assert "Executing" in mock_ctx.info.call_args_list[0][0][0]
             assert "Command executed successfully" in mock_ctx.info.call_args_list[1][0][0]
 
         # Test failed command with context
@@ -175,14 +187,27 @@ async def test_aws_cli_pipeline_with_context_and_timeout():
 @pytest.mark.parametrize(
     "command,exception,expected_error_type,expected_message",
     [
-        # Validation error
-        ("not aws", CommandValidationError("Invalid command"), "Command validation error", "Invalid command"),
         # Execution error
-        ("aws s3 ls", CommandExecutionError("Execution failed"), "Command execution error", "Execution failed"),
+        (
+            "aws s3 ls",
+            CommandExecutionError("Execution failed"),
+            "Command execution error",
+            "Execution failed",
+        ),
         # Timeout error
-        ("aws ec2 describe-instances", CommandExecutionError("Command timed out"), "Command execution error", "Command timed out"),
+        (
+            "aws ec2 describe-instances",
+            CommandExecutionError("Command timed out"),
+            "Command execution error",
+            "Command timed out",
+        ),
         # Generic/unexpected error
-        ("aws dynamodb scan", Exception("Unexpected error"), "Unexpected error", "Unexpected error"),
+        (
+            "aws dynamodb scan",
+            Exception("Unexpected error"),
+            "Unexpected error",
+            "Unexpected error",
+        ),
     ],
 )
 async def test_aws_cli_pipeline_errors(command, exception, expected_error_type, expected_message):

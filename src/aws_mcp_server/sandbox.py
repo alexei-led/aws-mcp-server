@@ -859,7 +859,7 @@ async def execute_piped_sandboxed_async(
         sandbox = get_sandbox()
         current_input: bytes | None = None
         stderr_parts: list[bytes] = []
-        start_time = time.monotonic() if timeout else None
+        start_time = time.monotonic() if timeout is not None else None
 
         for i, cmd in enumerate(commands):
             # Calculate remaining time for this stage

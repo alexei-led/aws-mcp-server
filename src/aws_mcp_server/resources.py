@@ -466,23 +466,6 @@ def get_aws_environment() -> Dict[str, str]:
     return env_info
 
 
-def _mask_key(key: str) -> str:
-    """Mask a sensitive key for security.
-
-    Args:
-        key: The key to mask
-
-    Returns:
-        Masked key with only the first few characters visible
-    """
-    if not key:
-        return ""
-
-    # Show only first few characters
-    visible_len = min(3, len(key))
-    return key[:visible_len] + "*" * (len(key) - visible_len)
-
-
 def get_aws_account_info() -> Dict[str, Optional[str]]:
     """Get information about the current AWS account.
 
@@ -524,8 +507,9 @@ def get_aws_account_info() -> Dict[str, Optional[str]]:
                 # First try to get organization info
                 try:
                     org_response = org.describe_organization()
-                    if "OrganizationId" in org_response:
-                        account_info["organization_id"] = org_response["OrganizationId"]
+                    org_data = org_response.get("Organization", {})
+                    if org_id := org_data.get("Id"):
+                        account_info["organization_id"] = org_id
                 except Exception:
                     # Then try to get account-specific info if org-level call fails
                     account_response = org.describe_account(AccountId=account_id)

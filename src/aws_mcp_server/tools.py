@@ -1,71 +1,10 @@
 """Command parsing utilities for AWS MCP Server.
 
-This module provides utilities for parsing and validating commands, including:
-- Unix command validation
+This module provides utilities for parsing commands:
 - Pipe command detection and splitting
 """
 
-import shlex
 from typing import TypedDict
-
-# List of allowed Unix commands that can be used in a pipe
-ALLOWED_UNIX_COMMANDS = [
-    # File operations
-    "cat",
-    "ls",
-    "cd",
-    "pwd",
-    "cp",
-    "mv",
-    "rm",
-    "mkdir",
-    "touch",
-    "chmod",
-    "chown",
-    # Text processing
-    "grep",
-    "sed",
-    "awk",
-    "cut",
-    "sort",
-    "uniq",
-    "wc",
-    "head",
-    "tail",
-    "tr",
-    "find",
-    # System information
-    "ps",
-    "top",
-    "df",
-    "du",
-    "uname",
-    "whoami",
-    "date",
-    "which",
-    "echo",
-    # Networking
-    "ping",
-    "ifconfig",
-    "netstat",
-    "curl",
-    "wget",
-    "dig",
-    "nslookup",
-    "ssh",
-    "scp",
-    # Other utilities
-    "man",
-    "less",
-    "tar",
-    "gzip",
-    "gunzip",
-    "zip",
-    "unzip",
-    "xargs",
-    "jq",
-    "tee",
-]
 
 
 class CommandResult(TypedDict):
@@ -73,23 +12,6 @@ class CommandResult(TypedDict):
 
     status: str
     output: str
-
-
-def validate_unix_command(command: str) -> bool:
-    """Validate that a command is an allowed Unix command.
-
-    Args:
-        command: The Unix command to validate
-
-    Returns:
-        True if the command is valid, False otherwise
-    """
-    cmd_parts = shlex.split(command)
-    if not cmd_parts:
-        return False
-
-    # Check if the command is in the allowed list
-    return cmd_parts[0] in ALLOWED_UNIX_COMMANDS
 
 
 def is_pipe_command(command: str) -> bool:
@@ -101,13 +23,11 @@ def is_pipe_command(command: str) -> bool:
     Returns:
         True if the command contains a pipe operator, False otherwise
     """
-    # Check for pipe operator that's not inside quotes
     in_single_quote = False
     in_double_quote = False
     escaped = False
 
-    for _, char in enumerate(command):
-        # Handle escape sequences
+    for char in command:
         if char == "\\" and not escaped:
             escaped = True
             continue
@@ -140,8 +60,7 @@ def split_pipe_command(pipe_command: str) -> list[str]:
     in_double_quote = False
     escaped = False
 
-    for _, char in enumerate(pipe_command):
-        # Handle escape sequences
+    for char in pipe_command:
         if char == "\\" and not escaped:
             escaped = True
             current_command += char
@@ -160,7 +79,6 @@ def split_pipe_command(pipe_command: str) -> list[str]:
             else:
                 current_command += char
         else:
-            # Add the escaped character
             current_command += char
             escaped = False
 
