@@ -23,26 +23,7 @@ def is_pipe_command(command: str) -> bool:
     Returns:
         True if the command contains a pipe operator, False otherwise
     """
-    in_single_quote = False
-    in_double_quote = False
-    escaped = False
-
-    for char in command:
-        if char == "\\" and not escaped:
-            escaped = True
-            continue
-
-        if not escaped:
-            if char == "'" and not in_double_quote:
-                in_single_quote = not in_single_quote
-            elif char == '"' and not in_single_quote:
-                in_double_quote = not in_double_quote
-            elif char == "|" and not in_single_quote and not in_double_quote:
-                return True
-
-        escaped = False
-
-    return False
+    return len(split_pipe_command(command)) > 1
 
 
 def split_pipe_command(pipe_command: str) -> list[str]:

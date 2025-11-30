@@ -62,7 +62,6 @@ def format_error_message(stderr_str: str, command: str) -> str:
     if not stderr_str:
         return f"Command failed with no error output. Command: '{command}'"
 
-    # Check for common patterns and provide actionable guidance
     if "command not found" in stderr_str.lower():
         return f"{stderr_str}\nThe command or a tool in the pipeline is not installed. Available tools: jq, grep, head, tail, sort, wc, cut, awk, sed."
 
@@ -95,8 +94,47 @@ async def check_aws_cli_installed() -> bool:
         )
         await process.communicate()
         return process.returncode == 0
-    except Exception:
+    except Exception as e:
+        logger.debug(f"AWS CLI check failed: {e}")
         return False
+
+
+def _add_ec2_region_if_needed(command: str) -> str:
+    """Add region flag to EC2 commands if not already present."""
+    from aws_mcp_server.config import AWS_REGION
+
+    cmd_parts = shlex.split(command)
+    is_ec2 = len(cmd_parts) >= 2 and cmd_parts[0] == "aws" and cmd_parts[1] == "ec2"
+    has_region = any(part.startswith("--region") for part in cmd_parts)
+
+    if is_ec2 and not has_region:
+        command = f"{command} --region {AWS_REGION}"
+        logger.debug(f"Added region to command: {command}")
+
+    return command
+
+
+def _process_output(stdout: bytes, stderr: bytes, returncode: int, command: str) -> CommandResult:
+    """Process command output and return appropriate result."""
+    stdout_str = stdout.decode("utf-8", errors="replace")
+    stderr_str = stderr.decode("utf-8", errors="replace")
+
+    if len(stdout_str) > MAX_OUTPUT_SIZE:
+        stdout_str = stdout_str[:MAX_OUTPUT_SIZE] + "\n... (output truncated)"
+
+    if returncode != 0:
+        logger.warning(f"Command failed (code {returncode}): {command}")
+        if is_auth_error(stderr_str):
+            return CommandResult(
+                status="error",
+                output=f"Authentication error: {stderr_str}\nPlease check your AWS credentials configuration.",
+            )
+        return CommandResult(
+            status="error",
+            output=format_error_message(stderr_str, command),
+        )
+
+    return CommandResult(status="success", output=stdout_str)
 
 
 async def execute_aws_command(command: str, timeout: int | None = None) -> CommandResult:
@@ -120,6 +158,7 @@ async def execute_aws_command(command: str, timeout: int | None = None) -> Comma
     if timeout is None:
         timeout = DEFAULT_TIMEOUT
 
+    command = _add_ec2_region_if_needed(command)
     cmd_parts = shlex.split(command)
     if not cmd_parts:
         return CommandResult(
@@ -127,41 +166,12 @@ async def execute_aws_command(command: str, timeout: int | None = None) -> Comma
             output="Empty command. Expected format: 'aws <service> <command> [options]' (e.g., 'aws s3 ls', 'aws ec2 describe-instances')",
         )
 
-    # Add region for EC2 commands if not specified
-    from aws_mcp_server.config import AWS_REGION
-
-    is_ec2 = len(cmd_parts) >= 2 and cmd_parts[0] == "aws" and cmd_parts[1] == "ec2"
-    has_region = any(part.startswith("--region") for part in cmd_parts)
-
-    if is_ec2 and not has_region:
-        command = f"{command} --region {AWS_REGION}"
-        cmd_parts = shlex.split(command)
-        logger.debug(f"Added region to command: {command}")
-
     try:
         logger.debug(f"Executing: {command} (sandbox: {sandbox_available()})")
 
         stdout, stderr, returncode = await execute_sandboxed_async(cmd_parts, timeout=float(timeout))
 
-        stdout_str = stdout.decode("utf-8", errors="replace")
-        stderr_str = stderr.decode("utf-8", errors="replace")
-
-        if len(stdout_str) > MAX_OUTPUT_SIZE:
-            stdout_str = stdout_str[:MAX_OUTPUT_SIZE] + "\n... (output truncated)"
-
-        if returncode != 0:
-            logger.warning(f"Command failed (code {returncode}): {command}")
-            if is_auth_error(stderr_str):
-                return CommandResult(
-                    status="error",
-                    output=f"Authentication error: {stderr_str}\nPlease check your AWS credentials configuration.",
-                )
-            return CommandResult(
-                status="error",
-                output=format_error_message(stderr_str, command),
-            )
-
-        return CommandResult(status="success", output=stdout_str)
+        return _process_output(stdout, stderr, returncode, command)
 
     except asyncio.TimeoutError as e:
         raise CommandExecutionError(
@@ -204,16 +214,7 @@ async def execute_pipe_command(pipe_command: str, timeout: int | None = None) ->
     if timeout is None:
         timeout = DEFAULT_TIMEOUT
 
-    # Add region for EC2 commands if not specified
-    from aws_mcp_server.config import AWS_REGION
-
-    first_parts = shlex.split(commands[0])
-    is_ec2 = len(first_parts) >= 2 and first_parts[0] == "aws" and first_parts[1] == "ec2"
-    has_region = any(part.startswith("--region") for part in first_parts)
-
-    if is_ec2 and not has_region:
-        commands[0] = f"{commands[0]} --region {AWS_REGION}"
-        logger.debug(f"Added region to first command: {commands[0]}")
+    commands[0] = _add_ec2_region_if_needed(commands[0])
 
     try:
         logger.debug(f"Executing piped: {pipe_command} (sandbox: {sandbox_available()})")
@@ -221,25 +222,7 @@ async def execute_pipe_command(pipe_command: str, timeout: int | None = None) ->
         command_parts_list = [shlex.split(cmd) for cmd in commands]
         stdout, stderr, returncode = await execute_piped_sandboxed_async(command_parts_list, timeout=float(timeout))
 
-        stdout_str = stdout.decode("utf-8", errors="replace")
-        stderr_str = stderr.decode("utf-8", errors="replace")
-
-        if len(stdout_str) > MAX_OUTPUT_SIZE:
-            stdout_str = stdout_str[:MAX_OUTPUT_SIZE] + "\n... (output truncated)"
-
-        if returncode != 0:
-            logger.warning(f"Piped command failed (code {returncode}): {pipe_command}")
-            if is_auth_error(stderr_str):
-                return CommandResult(
-                    status="error",
-                    output=f"Authentication error: {stderr_str}\nPlease check your AWS credentials configuration.",
-                )
-            return CommandResult(
-                status="error",
-                output=format_error_message(stderr_str, pipe_command),
-            )
-
-        return CommandResult(status="success", output=stdout_str)
+        return _process_output(stdout, stderr, returncode, pipe_command)
 
     except asyncio.TimeoutError as e:
         raise CommandExecutionError(

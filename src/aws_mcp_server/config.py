@@ -17,29 +17,17 @@ Environment variables:
 import os
 from pathlib import Path
 
-# Command execution settings
 DEFAULT_TIMEOUT = int(os.environ.get("AWS_MCP_TIMEOUT", "300"))
 MAX_OUTPUT_SIZE = int(os.environ.get("AWS_MCP_MAX_OUTPUT", "100000"))
-
-# Transport protocol
 TRANSPORT = os.environ.get("AWS_MCP_TRANSPORT", "stdio")
-
-# AWS CLI settings
 AWS_PROFILE = os.environ.get("AWS_PROFILE", "default")
 AWS_REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
 
-
-# Sandbox settings
-# "auto" - use sandbox if available, fall back to no sandbox
-# "disabled" - never use sandbox
-# "required" - fail if sandbox is not available
+# Sandbox mode: "auto" (use if available), "disabled" (never use), "required" (fail if unavailable)
 SANDBOX_MODE = os.environ.get("AWS_MCP_SANDBOX", "auto").lower()
-# "env" - pass AWS credentials via environment variables only
-# "aws_config" - allow read access to ~/.aws directory only
-# "both" - both environment variables and ~/.aws access (default)
+# Credential mode: "env" (environment only), "aws_config" (~/.aws only), "both" (default)
 SANDBOX_CREDENTIAL_MODE = os.environ.get("AWS_MCP_SANDBOX_CREDENTIALS", "both").lower()
 
-# Instructions displayed to client during initialization
 INSTRUCTIONS = """
 AWS MCP Server provides access to the entire AWS CLI through two tools.
 
@@ -92,5 +80,4 @@ AWS RESOURCES (read these for context):
   - disaster_recovery: Implement enterprise-grade DR solutions
 """
 
-# Application paths
 BASE_DIR = Path(__file__).parent.parent.parent

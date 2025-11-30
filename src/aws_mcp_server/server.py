@@ -24,7 +24,6 @@ from aws_mcp_server.config import INSTRUCTIONS
 from aws_mcp_server.prompts import register_prompts
 from aws_mcp_server.resources import register_resources
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -33,7 +32,6 @@ logging.basicConfig(
 logger = logging.getLogger("aws-mcp-server")
 
 
-# Run startup checks in synchronous context
 def run_startup_checks():
     """Run startup checks to ensure AWS CLI is installed."""
     logger.info("Running startup checks...")
@@ -43,19 +41,14 @@ def run_startup_checks():
     logger.info("AWS CLI is installed and available")
 
 
-# Call the checks
 run_startup_checks()
 
-# Create the FastMCP server following FastMCP best practices
 mcp = FastMCP(
     "AWS MCP Server",
     instructions=INSTRUCTIONS,
 )
 
-# Register prompt templates
 register_prompts(mcp)
-
-# Register AWS resources
 register_resources(mcp)
 
 
@@ -88,7 +81,6 @@ async def aws_cli_help(
         if ctx:
             await ctx.info(f"Fetching help for AWS {service} {command or ''}")
 
-        # Reuse the get_command_help function from cli_executor
         result = await get_command_help(service, command)
         return result
     except Exception as e:
