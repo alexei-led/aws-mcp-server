@@ -30,13 +30,20 @@ def main():
     signal.signal(signal.SIGTERM, handle_interrupt)
 
     try:
-        from aws_mcp_server.config import TRANSPORT
+        from aws_mcp_server.config import TRANSPORT, is_docker_environment
 
         if TRANSPORT not in ("stdio", "sse"):
             logger.error(f"Invalid transport protocol: {TRANSPORT}. Must be 'stdio' or 'sse'")
             sys.exit(1)
 
         logger.info(f"Starting server with transport protocol: {TRANSPORT}")
+
+        if TRANSPORT == "sse":
+            # Bind to 0.0.0.0 in Docker (required for port mapping), 127.0.0.1 otherwise
+            host = "0.0.0.0" if is_docker_environment() else "127.0.0.1"
+            mcp.settings.host = host
+            logger.info(f"SSE server binding to {host}:{mcp.settings.port}")
+
         mcp.run(transport=TRANSPORT)
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received. Shutting down...")

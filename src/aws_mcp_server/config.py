@@ -81,3 +81,21 @@ AWS RESOURCES (read these for context):
 """
 
 BASE_DIR = Path(__file__).parent.parent.parent
+
+
+def is_docker_environment() -> bool:
+    """Detect if running inside a Docker container.
+
+    Checks for common Docker indicators:
+    - /.dockerenv file (most reliable)
+    - /proc/self/cgroup contains 'docker'
+    """
+    if Path("/.dockerenv").exists():
+        return True
+    try:
+        cgroup_path = Path("/proc/self/cgroup")
+        if cgroup_path.exists():
+            return "docker" in cgroup_path.read_text()
+    except (OSError, IOError):
+        pass
+    return False
