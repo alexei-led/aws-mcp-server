@@ -33,9 +33,7 @@ def main():
         from aws_mcp_server.config import TRANSPORT
 
         if TRANSPORT not in ("stdio", "sse"):
-            logger.error(
-                f"Invalid transport protocol: {TRANSPORT}. Must be 'stdio' or 'sse'"
-            )
+            logger.error(f"Invalid transport protocol: {TRANSPORT}. Must be 'stdio' or 'sse'")
             sys.exit(1)
 
         logger.info(f"Starting server with transport protocol: {TRANSPORT}")
