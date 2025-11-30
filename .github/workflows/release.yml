@@ -99,3 +99,20 @@ jobs:
             VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  publish-pypi:
+    if: github.ref_type == 'tag'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Build package
+        run: uv build
+      - name: Publish to PyPI
+        run: uv publish

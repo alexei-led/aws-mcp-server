@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0", "setuptools_scm>=8.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aws-mcp-server"
+name = "alexei-led.aws-mcp-server"
 dynamic = ["version"]
 description = "AWS Model Context Protocol Server"
 readme = "README.md"
 requires-python = ">=3.13"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "Alexei Ledenev" }]
 dependencies = [
     "fastmcp>=2.13.0",
@@ -16,6 +16,9 @@ dependencies = [
     "boto3>=1.41.0",
     "pyyaml>=6.0.0"
 ]
+
+[project.scripts]
+aws-mcp-server = "aws_mcp_server.__main__:main"
 
 [project.optional-dependencies]
 dev = [
@@ -91,4 +94,5 @@ exclude_lines = [
 ]
 
 [tool.setuptools_scm]
-fallback_version="0.0.0-dev0"
+fallback_version = "0.0.0-dev0"
+local_scheme = "no-local-version"

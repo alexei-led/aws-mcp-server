@@ -34,7 +34,7 @@ python -m setuptools_scm
 ```python
 # Preferred method - via Python metadata
 from importlib.metadata import version
-__version__ = version("aws-mcp-server")
+__version__ = version("alexei-led.aws-mcp-server")
 
 # Alternative - if using version file
 from aws_mcp_server._version import version, __version__

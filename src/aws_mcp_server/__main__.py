@@ -10,8 +10,11 @@ import sys
 
 from aws_mcp_server.server import logger, mcp
 
-# Configure root logger
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", handlers=[logging.StreamHandler(sys.stderr)])
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)],
+)
 
 
 def handle_interrupt(signum, frame):
@@ -20,24 +23,24 @@ def handle_interrupt(signum, frame):
     sys.exit(0)
 
 
-# Using FastMCP's built-in CLI handling
-if __name__ == "__main__":
-    # Set up signal handler for graceful shutdown
+def main():
+    """Entry point for the AWS MCP Server CLI."""
     signal.signal(signal.SIGINT, handle_interrupt)
     signal.signal(signal.SIGTERM, handle_interrupt)
 
     try:
-        # Use configured transport protocol
         from aws_mcp_server.config import TRANSPORT
 
-        # Validate transport protocol
         if TRANSPORT not in ("stdio", "sse"):
             logger.error(f"Invalid transport protocol: {TRANSPORT}. Must be 'stdio' or 'sse'")
             sys.exit(1)
 
-        # Run with the specified transport protocol
         logger.info(f"Starting server with transport protocol: {TRANSPORT}")
         mcp.run(transport=TRANSPORT)
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received. Shutting down gracefully...")
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

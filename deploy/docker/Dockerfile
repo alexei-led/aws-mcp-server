@@ -92,7 +92,7 @@ COPY src/ ./src/
 
 # Copy wheels from builder and install
 COPY --from=builder /wheels /wheels
-RUN pip install --no-cache-dir --no-index --find-links=/wheels aws-mcp-server && \
+RUN pip install --no-cache-dir --no-index --find-links=/wheels alexei-led.aws-mcp-server && \
     rm -rf /wheels
 
 # Set ownership after all files have been copied - avoid .aws directory
