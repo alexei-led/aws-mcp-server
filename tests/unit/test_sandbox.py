@@ -413,9 +413,7 @@ class TestSandbox:
         sandbox = Sandbox(sandbox_mode="required")
 
         with patch("platform.system", return_value="Windows"):
-            with pytest.raises(
-                SandboxError, match="Sandbox required but not available"
-            ):
+            with pytest.raises(SandboxError, match="Sandbox required but not available"):
                 sandbox._select_backend("required")
 
     @pytest.mark.skipif(not IS_LINUX, reason="Linux backend selection test")
@@ -426,9 +424,7 @@ class TestSandbox:
         with patch("platform.system", return_value="Linux"):
             backend = sandbox._select_backend("auto")
             # Should return either Landlock, Bubblewrap, or NoOp depending on availability
-            assert isinstance(
-                backend, (LinuxLandlockBackend, LinuxBubblewrapBackend, NoOpBackend)
-            )
+            assert isinstance(backend, (LinuxLandlockBackend, LinuxBubblewrapBackend, NoOpBackend))
 
     @pytest.mark.skipif(not IS_MACOS, reason="macOS backend selection test")
     def test_select_backend_macos_auto(self):
@@ -577,9 +573,7 @@ class TestModuleFunctions:
         when AWS_MCP_SANDBOX=required but no backend was available.
         """
         with patch("aws_mcp_server.sandbox.get_sandbox") as mock_get_sandbox:
-            mock_get_sandbox.side_effect = SandboxError(
-                "Sandbox required but not available"
-            )
+            mock_get_sandbox.side_effect = SandboxError("Sandbox required but not available")
             available = sandbox_available()
             assert available is False
 
@@ -606,9 +600,7 @@ class TestAsyncFunctions:
         with patch("aws_mcp_server.config.SANDBOX_MODE", "disabled"):
             with patch("aws_mcp_server.config.SANDBOX_CREDENTIAL_MODE", "both"):
                 reset_sandbox()
-                stdout, stderr, returncode = await execute_sandboxed_async(
-                    ["echo", "hello"]
-                )
+                stdout, stderr, returncode = await execute_sandboxed_async(["echo", "hello"])
 
                 assert returncode == 0
                 assert b"hello" in stdout
@@ -636,9 +628,7 @@ class TestAsyncFunctions:
                     ["echo", "hello world"],
                     ["grep", "hello"],
                 ]
-                stdout, stderr, returncode = await execute_piped_sandboxed_async(
-                    commands
-                )
+                stdout, stderr, returncode = await execute_piped_sandboxed_async(commands)
 
                 assert returncode == 0
                 assert b"hello" in stdout
@@ -665,9 +655,7 @@ class TestAsyncFunctions:
                     ["echo", "hello"],
                     ["grep", "nonexistent"],
                 ]
-                stdout, stderr, returncode = await execute_piped_sandboxed_async(
-                    commands
-                )
+                stdout, stderr, returncode = await execute_piped_sandboxed_async(commands)
 
                 assert returncode == 1
 
@@ -702,9 +690,7 @@ class TestAsyncFunctions:
                 with pytest.raises(asyncio.TimeoutError):
                     await execute_piped_sandboxed_async(commands, timeout=0.3)
                 elapsed = time.monotonic() - start
-                assert (
-                    elapsed < 0.5
-                ), f"Pipeline took {elapsed}s, should timeout around 0.3s"
+                assert elapsed < 0.5, f"Pipeline took {elapsed}s, should timeout around 0.3s"
 
     @pytest.mark.asyncio
     async def test_execute_piped_sandboxed_async_zero_timeout(self):
@@ -821,9 +807,7 @@ class TestGetAwsCredentialPaths:
 
         assert str(aws_dir) in paths
 
-    def test_default_aws_directory_not_included_when_missing(
-        self, tmp_path, monkeypatch
-    ):
+    def test_default_aws_directory_not_included_when_missing(self, tmp_path, monkeypatch):
         """Test that non-existent ~/.aws directory is not included."""
         monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
         monkeypatch.delenv("AWS_SHARED_CREDENTIALS_FILE", raising=False)

@@ -15,9 +15,7 @@ def test_is_pipe_command():
 
     # Pipes in quotes should not be detected as pipe commands
     assert not is_pipe_command("aws s3 ls 's3://my-bucket/file|other'")
-    assert not is_pipe_command(
-        'aws ec2 run-instances --user-data "echo hello | grep world"'
-    )
+    assert not is_pipe_command('aws ec2 run-instances --user-data "echo hello | grep world"')
 
     # Escaped quotes should not confuse the parser
     assert is_pipe_command('aws s3 ls --query "Name=\\"value\\"" | grep bucket')
@@ -35,15 +33,11 @@ def test_split_pipe_command():
     assert result == ["aws s3api list-buckets", "jq '.Buckets[].Name'", "sort"]
 
     # Quoted pipe symbols should not split
-    result = split_pipe_command(
-        "aws s3 ls 's3://bucket/file|name' | grep 'pattern|other'"
-    )
+    result = split_pipe_command("aws s3 ls 's3://bucket/file|name' | grep 'pattern|other'")
     assert result == ["aws s3 ls 's3://bucket/file|name'", "grep 'pattern|other'"]
 
     # Double quotes
-    result = split_pipe_command(
-        'aws s3 ls "s3://bucket/file|name" | grep "pattern|other"'
-    )
+    result = split_pipe_command('aws s3 ls "s3://bucket/file|name" | grep "pattern|other"')
     assert result == ['aws s3 ls "s3://bucket/file|name"', 'grep "pattern|other"']
 
     # Escaped quotes

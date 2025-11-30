@@ -20,9 +20,7 @@ from aws_mcp_server.config import MAX_OUTPUT_SIZE
 @pytest.mark.asyncio
 async def test_execute_aws_command_success():
     """Test successful command execution."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.return_value = (b"Success output", b"", 0)
 
         result = await execute_aws_command("aws s3 ls")
@@ -37,9 +35,7 @@ async def test_execute_aws_command_success():
 @pytest.mark.asyncio
 async def test_execute_aws_command_ec2_with_region_added():
     """Test that region is automatically added to EC2 commands."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.return_value = (b"EC2 instances", b"", 0)
 
         from aws_mcp_server.config import AWS_REGION
@@ -61,14 +57,10 @@ async def test_execute_aws_command_ec2_with_region_added():
 @pytest.mark.asyncio
 async def test_execute_aws_command_ec2_with_region_equals_syntax():
     """Test that region is NOT added when --region=value is already present."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.return_value = (b"EC2 instances", b"", 0)
 
-        result = await execute_aws_command(
-            "aws ec2 describe-instances --region=eu-west-1"
-        )
+        result = await execute_aws_command("aws ec2 describe-instances --region=eu-west-1")
 
         assert result["status"] == "success"
 
@@ -81,9 +73,7 @@ async def test_execute_aws_command_ec2_with_region_equals_syntax():
 @pytest.mark.asyncio
 async def test_execute_aws_command_with_custom_timeout():
     """Test command execution with custom timeout."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.return_value = (b"Success output", b"", 0)
 
         custom_timeout = 120
@@ -97,9 +87,7 @@ async def test_execute_aws_command_with_custom_timeout():
 @pytest.mark.asyncio
 async def test_execute_aws_command_error():
     """Test command execution error."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.return_value = (b"", b"Error message", 1)
 
         result = await execute_aws_command("aws s3 ls")
@@ -111,9 +99,7 @@ async def test_execute_aws_command_error():
 @pytest.mark.asyncio
 async def test_execute_aws_command_auth_error():
     """Test command execution with authentication error."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.return_value = (b"", b"Unable to locate credentials", 1)
 
         result = await execute_aws_command("aws s3 ls")
@@ -127,9 +113,7 @@ async def test_execute_aws_command_auth_error():
 @pytest.mark.asyncio
 async def test_execute_aws_command_timeout():
     """Test command timeout."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.side_effect = asyncio.TimeoutError("Command timed out")
 
         with pytest.raises(CommandExecutionError) as excinfo:
@@ -141,9 +125,7 @@ async def test_execute_aws_command_timeout():
 @pytest.mark.asyncio
 async def test_execute_aws_command_general_exception():
     """Test handling of general exceptions during command execution."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         mock_sandbox.side_effect = Exception("Test exception")
 
         with pytest.raises(CommandExecutionError) as excinfo:
@@ -156,9 +138,7 @@ async def test_execute_aws_command_general_exception():
 @pytest.mark.asyncio
 async def test_execute_aws_command_truncate_output():
     """Test truncation of large outputs."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         large_output = "x" * (MAX_OUTPUT_SIZE + 1000)
         mock_sandbox.return_value = (large_output.encode("utf-8"), b"", 0)
 
@@ -206,18 +186,14 @@ def test_is_auth_error(error_message, expected_result):
         (None, None, None, Exception("Test exception"), False),
     ],
 )
-async def test_check_aws_cli_installed(
-    returncode, stdout, stderr, exception, expected_result
-):
+async def test_check_aws_cli_installed(returncode, stdout, stderr, exception, expected_result):
     """Test check_aws_cli_installed function with various scenarios."""
     if exception:
         with patch("asyncio.create_subprocess_exec", side_effect=exception):
             result = await check_aws_cli_installed()
             assert result is expected_result
     else:
-        with patch(
-            "asyncio.create_subprocess_exec", new_callable=AsyncMock
-        ) as mock_subprocess:
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_subprocess:
             process_mock = AsyncMock()
             process_mock.returncode = returncode
             process_mock.communicate.return_value = (stdout, stderr)
@@ -281,13 +257,9 @@ async def test_check_aws_cli_installed(
         ),
     ],
 )
-async def test_get_command_help(
-    service, command, mock_type, mock_value, expected_text, expected_call
-):
+async def test_get_command_help(service, command, mock_type, mock_value, expected_text, expected_call):
     """Test get_command_help function with various scenarios."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_aws_command", new_callable=AsyncMock
-    ) as mock_execute:
+    with patch("aws_mcp_server.cli_executor.execute_aws_command", new_callable=AsyncMock) as mock_execute:
         if mock_type == "return_value":
             mock_execute.return_value = mock_value
         else:
@@ -305,9 +277,7 @@ async def test_get_command_help(
 async def test_execute_aws_command_with_pipe():
     """Test execute_aws_command with a piped command."""
     with patch("aws_mcp_server.cli_executor.is_pipe_command", return_value=True):
-        with patch(
-            "aws_mcp_server.cli_executor.execute_pipe_command", new_callable=AsyncMock
-        ) as mock_pipe_exec:
+        with patch("aws_mcp_server.cli_executor.execute_pipe_command", new_callable=AsyncMock) as mock_pipe_exec:
             mock_pipe_exec.return_value = {
                 "status": "success",
                 "output": "Piped result",
@@ -347,9 +317,7 @@ async def test_execute_pipe_command_ec2_with_region_added():
 
         from aws_mcp_server.config import AWS_REGION
 
-        result = await execute_pipe_command(
-            "aws ec2 describe-instances | grep instance-id"
-        )
+        result = await execute_pipe_command("aws ec2 describe-instances | grep instance-id")
 
         assert result["status"] == "success"
         assert result["output"] == "Filtered EC2 instances"
@@ -369,9 +337,7 @@ async def test_execute_pipe_command_ec2_with_region_equals_syntax():
     ) as mock_sandbox:
         mock_sandbox.return_value = (b"Filtered EC2 instances", b"", 0)
 
-        result = await execute_pipe_command(
-            "aws ec2 describe-instances --region=eu-west-1 | grep instance-id"
-        )
+        result = await execute_pipe_command("aws ec2 describe-instances --region=eu-west-1 | grep instance-id")
 
         assert result["status"] == "success"
 
@@ -466,13 +432,9 @@ async def test_execute_pipe_command_large_output():
     ],
 )
 @pytest.mark.asyncio
-async def test_execute_aws_command_exit_codes(
-    exit_code, stderr, expected_status, expected_msg
-):
+async def test_execute_aws_command_exit_codes(exit_code, stderr, expected_status, expected_msg):
     """Test handling of different process exit codes and stderr output."""
-    with patch(
-        "aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock
-    ) as mock_sandbox:
+    with patch("aws_mcp_server.cli_executor.execute_sandboxed_async", new_callable=AsyncMock) as mock_sandbox:
         stdout = b"Command output" if exit_code == 0 else b""
         mock_sandbox.return_value = (stdout, stderr, exit_code)
 

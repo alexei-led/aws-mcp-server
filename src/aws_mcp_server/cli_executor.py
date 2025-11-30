@@ -66,16 +66,10 @@ def format_error_message(stderr_str: str, command: str) -> str:
     if "command not found" in stderr_str.lower():
         return f"{stderr_str}\nThe command or a tool in the pipeline is not installed. Available tools: jq, grep, head, tail, sort, wc, cut, awk, sed."
 
-    if (
-        "invalid choice" in stderr_str.lower()
-        or "unknown command" in stderr_str.lower()
-    ):
+    if "invalid choice" in stderr_str.lower() or "unknown command" in stderr_str.lower():
         return f"{stderr_str}\nUse aws_cli_help to see available commands for this service."
 
-    if (
-        "missing required" in stderr_str.lower()
-        or "required argument" in stderr_str.lower()
-    ):
+    if "missing required" in stderr_str.lower() or "required argument" in stderr_str.lower():
         return f"{stderr_str}\nUse aws_cli_help to see required parameters for this command."
 
     if "InvalidParameterValue" in stderr_str or "ValidationError" in stderr_str:
@@ -105,9 +99,7 @@ async def check_aws_cli_installed() -> bool:
         return False
 
 
-async def execute_aws_command(
-    command: str, timeout: int | None = None
-) -> CommandResult:
+async def execute_aws_command(command: str, timeout: int | None = None) -> CommandResult:
     """Execute a command and return the result.
 
     Commands are executed in a sandbox environment when available.
@@ -149,9 +141,7 @@ async def execute_aws_command(
     try:
         logger.debug(f"Executing: {command} (sandbox: {sandbox_available()})")
 
-        stdout, stderr, returncode = await execute_sandboxed_async(
-            cmd_parts, timeout=float(timeout)
-        )
+        stdout, stderr, returncode = await execute_sandboxed_async(cmd_parts, timeout=float(timeout))
 
         stdout_str = stdout.decode("utf-8", errors="replace")
         stderr_str = stderr.decode("utf-8", errors="replace")
@@ -186,14 +176,10 @@ async def execute_aws_command(
     except asyncio.CancelledError:
         raise
     except Exception as e:
-        raise CommandExecutionError(
-            f"Failed to execute command: {e}. Verify the command syntax is correct."
-        ) from e
+        raise CommandExecutionError(f"Failed to execute command: {e}. Verify the command syntax is correct.") from e
 
 
-async def execute_pipe_command(
-    pipe_command: str, timeout: int | None = None
-) -> CommandResult:
+async def execute_pipe_command(pipe_command: str, timeout: int | None = None) -> CommandResult:
     """Execute a piped command.
 
     All commands are executed in a sandbox environment when available.
@@ -222,9 +208,7 @@ async def execute_pipe_command(
     from aws_mcp_server.config import AWS_REGION
 
     first_parts = shlex.split(commands[0])
-    is_ec2 = (
-        len(first_parts) >= 2 and first_parts[0] == "aws" and first_parts[1] == "ec2"
-    )
+    is_ec2 = len(first_parts) >= 2 and first_parts[0] == "aws" and first_parts[1] == "ec2"
     has_region = any(part.startswith("--region") for part in first_parts)
 
     if is_ec2 and not has_region:
@@ -232,14 +216,10 @@ async def execute_pipe_command(
         logger.debug(f"Added region to first command: {commands[0]}")
 
     try:
-        logger.debug(
-            f"Executing piped: {pipe_command} (sandbox: {sandbox_available()})"
-        )
+        logger.debug(f"Executing piped: {pipe_command} (sandbox: {sandbox_available()})")
 
         command_parts_list = [shlex.split(cmd) for cmd in commands]
-        stdout, stderr, returncode = await execute_piped_sandboxed_async(
-            command_parts_list, timeout=float(timeout)
-        )
+        stdout, stderr, returncode = await execute_piped_sandboxed_async(command_parts_list, timeout=float(timeout))
 
         stdout_str = stdout.decode("utf-8", errors="replace")
         stderr_str = stderr.decode("utf-8", errors="replace")
@@ -272,14 +252,10 @@ async def execute_pipe_command(
             f"Check if any command in the pipeline requires filesystem access outside allowed paths."
         ) from e
     except Exception as e:
-        raise CommandExecutionError(
-            f"Failed to execute piped command: {e}. Verify command syntax and ensure all piped tools are available."
-        ) from e
+        raise CommandExecutionError(f"Failed to execute piped command: {e}. Verify command syntax and ensure all piped tools are available.") from e
 
 
-async def get_command_help(
-    service: str, command: str | None = None
-) -> CommandHelpResult:
+async def get_command_help(service: str, command: str | None = None) -> CommandHelpResult:
     """Get help documentation for an AWS CLI service or command."""
     cmd_parts = ["aws", service]
     if command:
@@ -290,11 +266,7 @@ async def get_command_help(
 
     try:
         result = await execute_aws_command(cmd_str)
-        help_text = (
-            result["output"]
-            if result["status"] == "success"
-            else f"Error: {result['output']}"
-        )
+        help_text = result["output"] if result["status"] == "success" else f"Error: {result['output']}"
         return CommandHelpResult(help_text=help_text)
     except CommandExecutionError as e:
         return CommandHelpResult(help_text=f"Error retrieving help: {e}")

@@ -26,9 +26,7 @@ TRANSPORT = os.environ.get("AWS_MCP_TRANSPORT", "stdio")
 
 # AWS CLI settings
 AWS_PROFILE = os.environ.get("AWS_PROFILE", "default")
-AWS_REGION = os.environ.get(
-    "AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-)
+AWS_REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
 
 
 # Sandbox settings

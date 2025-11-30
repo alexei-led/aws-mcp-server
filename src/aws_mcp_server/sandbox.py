@@ -131,9 +131,7 @@ class SandboxConfig:
             self.env_passthrough = self._default_env_passthrough()
         # Remove secret AWS variables if env-based credentials are disabled
         if not self.pass_aws_env:
-            self.env_passthrough = [
-                var for var in self.env_passthrough if var not in AWS_SECRET_ENV_VARS
-            ]
+            self.env_passthrough = [var for var in self.env_passthrough if var not in AWS_SECRET_ENV_VARS]
 
     @staticmethod
     def _default_read_paths() -> list[str]:
@@ -337,12 +335,8 @@ class LinuxLandlockBackend(SandboxBackend):
                 rs.apply()
             except Exception as e:
                 if sandbox_mode == "required":
-                    raise RuntimeError(
-                        f"Sandboxing required but Landlock failed: {e}"
-                    ) from e
-                logger.warning(
-                    f"Landlock sandbox failed (mode={sandbox_mode}), continuing unsandboxed: {e}"
-                )
+                    raise RuntimeError(f"Sandboxing required but Landlock failed: {e}") from e
+                logger.warning(f"Landlock sandbox failed (mode={sandbox_mode}), continuing unsandboxed: {e}")
 
         env = self._build_env(config)
 
@@ -688,9 +682,7 @@ class Sandbox:
                 logger.info("Using Bubblewrap sandbox backend")
                 return bwrap
 
-            logger.warning(
-                "No Linux sandbox backend available, running without isolation"
-            )
+            logger.warning("No Linux sandbox backend available, running without isolation")
 
         elif system == "Darwin":
             seatbelt = MacOSSeatbeltBackend()
@@ -829,9 +821,7 @@ async def execute_sandboxed_async(
             result = get_sandbox().execute(cmd, input_data=input_data, timeout=timeout)
             return result.stdout, result.stderr, result.returncode
         except subprocess.TimeoutExpired as e:
-            raise asyncio.TimeoutError(
-                f"Command timed out after {e.timeout} seconds"
-            ) from e
+            raise asyncio.TimeoutError(f"Command timed out after {e.timeout} seconds") from e
 
     # Run in thread pool to avoid blocking
     return await loop.run_in_executor(None, run_sandboxed)
@@ -878,9 +868,7 @@ async def execute_piped_sandboxed_async(
                 elapsed = time.monotonic() - start_time
                 remaining = timeout - elapsed
                 if remaining <= 0:
-                    raise asyncio.TimeoutError(
-                        f"Pipeline timed out after {timeout} seconds (at stage {i})"
-                    )
+                    raise asyncio.TimeoutError(f"Pipeline timed out after {timeout} seconds (at stage {i})")
                 stage_timeout = remaining
 
             try:
@@ -899,9 +887,7 @@ async def execute_piped_sandboxed_async(
 
             except subprocess.TimeoutExpired as e:
                 elapsed = time.monotonic() - start_time if start_time else timeout
-                raise asyncio.TimeoutError(
-                    f"Pipeline timed out after {elapsed:.1f} seconds (at stage {i})"
-                ) from e
+                raise asyncio.TimeoutError(f"Pipeline timed out after {elapsed:.1f} seconds (at stage {i})") from e
 
         return current_input or b"", b"\n".join(stderr_parts), 0
 

@@ -61,9 +61,7 @@ register_resources(mcp)
 
 @mcp.tool()
 async def aws_cli_help(
-    service: str = Field(
-        description="AWS service name (e.g., 's3', 'ec2', 'lambda', 'iam')"
-    ),
+    service: str = Field(description="AWS service name (e.g., 's3', 'ec2', 'lambda', 'iam')"),
     command: str | None = Field(
         description="Specific command to get help for (e.g., 'cp' for s3, 'describe-instances' for ec2). Omit to get service overview.",
         default=None,
@@ -84,9 +82,7 @@ async def aws_cli_help(
     - aws_cli_help(service="s3", command="cp") -> shows s3 cp usage, parameters, examples
     - aws_cli_help(service="ec2", command="describe-instances") -> shows filtering options
     """
-    logger.info(
-        f"Getting documentation for service: {service}, command: {command or 'None'}"
-    )
+    logger.info(f"Getting documentation for service: {service}, command: {command or 'None'}")
 
     try:
         if ctx:
@@ -102,9 +98,7 @@ async def aws_cli_help(
 
 @mcp.tool()
 async def aws_cli_pipeline(
-    command: str = Field(
-        description="AWS CLI command, optionally piped to Unix tools for filtering and transformation"
-    ),
+    command: str = Field(description="AWS CLI command, optionally piped to Unix tools for filtering and transformation"),
     timeout: int | None = Field(
         description="Optional timeout in seconds. Default: 300s. Increase for long operations.",
         default=None,
@@ -138,10 +132,7 @@ async def aws_cli_pipeline(
 
     Returns status ('success' or 'error') and command output.
     """
-    logger.info(
-        f"Executing command: {command}"
-        + (f" with timeout: {timeout}" if timeout else "")
-    )
+    logger.info(f"Executing command: {command}" + (f" with timeout: {timeout}" if timeout else ""))
 
     if ctx:
         is_pipe = "|" in command
@@ -161,9 +152,7 @@ async def aws_cli_pipeline(
         return CommandResult(status=result["status"], output=result["output"])
     except CommandExecutionError as e:
         logger.warning(f"Command execution error: {e}")
-        return CommandResult(
-            status="error", output=f"Command execution error: {str(e)}"
-        )
+        return CommandResult(status="error", output=f"Command execution error: {str(e)}")
     except Exception as e:
         logger.error(f"Error in aws_cli_pipeline: {e}")
         return CommandResult(status="error", output=f"Unexpected error: {str(e)}")
