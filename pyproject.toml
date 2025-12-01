@@ -70,7 +70,8 @@ asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore::RuntimeWarning:unittest.mock:",
-    "ignore::RuntimeWarning:weakref:"
+    "ignore::RuntimeWarning:weakref:",
+    "ignore:coroutine.*was never awaited:RuntimeWarning",
 ]
 
 [tool.coverage.run]
