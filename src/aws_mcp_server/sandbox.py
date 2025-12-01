@@ -161,6 +161,7 @@ class SandboxConfig:
                 "/private/etc",
                 "/var/run",
                 "/dev",
+                "/opt/homebrew",
             ]
         return []
 
@@ -473,6 +474,7 @@ class MacOSSeatbeltBackend(SandboxBackend):
     (subpath "/private/var/run")
     (subpath "/var/run")
     (subpath "/dev")
+    (subpath "/opt/homebrew")
     (subpath "/Applications/Xcode.app")
     (literal "/")
     (literal "/private")
