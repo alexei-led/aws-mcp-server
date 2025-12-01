@@ -9,7 +9,7 @@ import os
 import signal
 import sys
 
-from aws_mcp_server.server import logger, mcp
+from aws_mcp_server.server import logger, mcp, run_startup_checks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,6 +26,8 @@ def handle_interrupt(signum, frame):
 
 def main():
     """Entry point for the AWS MCP Server CLI."""
+    run_startup_checks()
+
     signal.signal(signal.SIGINT, handle_interrupt)
     signal.signal(signal.SIGTERM, handle_interrupt)
 

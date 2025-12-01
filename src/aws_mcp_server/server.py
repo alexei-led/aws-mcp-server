@@ -24,11 +24,6 @@ from aws_mcp_server.config import INSTRUCTIONS
 from aws_mcp_server.prompts import register_prompts
 from aws_mcp_server.resources import register_resources
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stderr)],
-)
 logger = logging.getLogger("aws-mcp-server")
 
 
@@ -40,8 +35,6 @@ def run_startup_checks():
         sys.exit(1)
     logger.info("AWS CLI is installed and available")
 
-
-run_startup_checks()
 
 mcp = FastMCP(
     "AWS MCP Server",

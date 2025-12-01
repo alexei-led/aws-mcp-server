@@ -14,7 +14,6 @@ from aws_mcp_server.server import (
 
 
 def test_run_startup_checks():
-    """Test the run_startup_checks function."""
     with patch("aws_mcp_server.server.check_aws_cli_installed") as mock_check:
         mock_check.return_value = None
 
@@ -42,7 +41,6 @@ def test_run_startup_checks():
     ],
 )
 async def test_aws_cli_help(service, command, expected_result):
-    """Test the aws_cli_help tool with various inputs."""
     with patch("aws_mcp_server.server.get_command_help", new_callable=AsyncMock) as mock_get_help:
         mock_get_help.return_value = expected_result
 
@@ -55,7 +53,6 @@ async def test_aws_cli_help(service, command, expected_result):
 
 @pytest.mark.asyncio
 async def test_aws_cli_help_with_context():
-    """Test the aws_cli_help tool with context."""
     mock_ctx = AsyncMock()
 
     with patch("aws_mcp_server.server.get_command_help", new_callable=AsyncMock) as mock_get_help:
@@ -70,7 +67,6 @@ async def test_aws_cli_help_with_context():
 
 @pytest.mark.asyncio
 async def test_aws_cli_help_exception_handling():
-    """Test exception handling in aws_cli_help."""
     with patch(
         "aws_mcp_server.server.get_command_help",
         side_effect=Exception("Test exception"),
@@ -96,7 +92,6 @@ async def test_aws_cli_help_exception_handling():
     ],
 )
 async def test_aws_cli_pipeline_success(command, timeout, expected_result):
-    """Test the aws_cli_pipeline tool with successful execution."""
     with patch("aws_mcp_server.server.check_aws_cli_installed", return_value=None):
         with patch("aws_mcp_server.server.execute_aws_command", new_callable=AsyncMock) as mock_execute:
             mock_execute.return_value = expected_result
@@ -111,7 +106,6 @@ async def test_aws_cli_pipeline_success(command, timeout, expected_result):
 
 @pytest.mark.asyncio
 async def test_aws_cli_pipeline_with_context():
-    """Test the aws_cli_pipeline tool with context."""
     mock_ctx = AsyncMock()
 
     with patch("aws_mcp_server.server.check_aws_cli_installed", return_value=None):
@@ -143,7 +137,6 @@ async def test_aws_cli_pipeline_with_context():
 
 @pytest.mark.asyncio
 async def test_aws_cli_pipeline_with_context_and_timeout():
-    """Test the aws_cli_pipeline tool with context and timeout."""
     mock_ctx = AsyncMock()
 
     with patch("aws_mcp_server.server.check_aws_cli_installed", return_value=None):
@@ -181,7 +174,6 @@ async def test_aws_cli_pipeline_with_context_and_timeout():
     ],
 )
 async def test_aws_cli_pipeline_errors(command, exception, expected_error_type, expected_message):
-    """Test the aws_cli_pipeline tool with various error scenarios."""
     with patch("aws_mcp_server.server.check_aws_cli_installed", return_value=None):
         with patch("aws_mcp_server.server.execute_aws_command", side_effect=exception) as mock_execute:
             result = await aws_cli_pipeline(command=command)
@@ -195,7 +187,6 @@ async def test_aws_cli_pipeline_errors(command, exception, expected_error_type, 
 
 @pytest.mark.asyncio
 async def test_mcp_server_initialization():
-    """Test that the MCP server initializes correctly."""
     assert mcp.name == "AWS MCP Server"
 
     assert callable(aws_cli_help)

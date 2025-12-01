@@ -15,6 +15,158 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 logger = logging.getLogger(__name__)
 
+# Consolidated region metadata - single source of truth for all region information
+REGION_METADATA: dict[str, dict[str, str]] = {
+    "us-east-1": {
+        "description": "US East (N. Virginia)",
+        "continent": "North America",
+        "country": "United States",
+        "city": "Ashburn, Virginia",
+    },
+    "us-east-2": {
+        "description": "US East (Ohio)",
+        "continent": "North America",
+        "country": "United States",
+        "city": "Columbus, Ohio",
+    },
+    "us-west-1": {
+        "description": "US West (N. California)",
+        "continent": "North America",
+        "country": "United States",
+        "city": "San Francisco, California",
+    },
+    "us-west-2": {
+        "description": "US West (Oregon)",
+        "continent": "North America",
+        "country": "United States",
+        "city": "Portland, Oregon",
+    },
+    "af-south-1": {
+        "description": "Africa (Cape Town)",
+        "continent": "Africa",
+        "country": "South Africa",
+        "city": "Cape Town",
+    },
+    "ap-east-1": {
+        "description": "Asia Pacific (Hong Kong)",
+        "continent": "Asia",
+        "country": "China",
+        "city": "Hong Kong",
+    },
+    "ap-south-1": {
+        "description": "Asia Pacific (Mumbai)",
+        "continent": "Asia",
+        "country": "India",
+        "city": "Mumbai",
+    },
+    "ap-northeast-1": {
+        "description": "Asia Pacific (Tokyo)",
+        "continent": "Asia",
+        "country": "Japan",
+        "city": "Tokyo",
+    },
+    "ap-northeast-2": {
+        "description": "Asia Pacific (Seoul)",
+        "continent": "Asia",
+        "country": "South Korea",
+        "city": "Seoul",
+    },
+    "ap-northeast-3": {
+        "description": "Asia Pacific (Osaka)",
+        "continent": "Asia",
+        "country": "Japan",
+        "city": "Osaka",
+    },
+    "ap-southeast-1": {
+        "description": "Asia Pacific (Singapore)",
+        "continent": "Asia",
+        "country": "Singapore",
+        "city": "Singapore",
+    },
+    "ap-southeast-2": {
+        "description": "Asia Pacific (Sydney)",
+        "continent": "Oceania",
+        "country": "Australia",
+        "city": "Sydney",
+    },
+    "ap-southeast-3": {
+        "description": "Asia Pacific (Jakarta)",
+        "continent": "Asia",
+        "country": "Indonesia",
+        "city": "Jakarta",
+    },
+    "ca-central-1": {
+        "description": "Canada (Central)",
+        "continent": "North America",
+        "country": "Canada",
+        "city": "Montreal",
+    },
+    "eu-central-1": {
+        "description": "EU Central (Frankfurt)",
+        "continent": "Europe",
+        "country": "Germany",
+        "city": "Frankfurt",
+    },
+    "eu-west-1": {
+        "description": "EU West (Ireland)",
+        "continent": "Europe",
+        "country": "Ireland",
+        "city": "Dublin",
+    },
+    "eu-west-2": {
+        "description": "EU West (London)",
+        "continent": "Europe",
+        "country": "United Kingdom",
+        "city": "London",
+    },
+    "eu-west-3": {
+        "description": "EU West (Paris)",
+        "continent": "Europe",
+        "country": "France",
+        "city": "Paris",
+    },
+    "eu-north-1": {
+        "description": "EU North (Stockholm)",
+        "continent": "Europe",
+        "country": "Sweden",
+        "city": "Stockholm",
+    },
+    "eu-south-1": {
+        "description": "EU South (Milan)",
+        "continent": "Europe",
+        "country": "Italy",
+        "city": "Milan",
+    },
+    "me-south-1": {
+        "description": "Middle East (Bahrain)",
+        "continent": "Middle East",
+        "country": "Bahrain",
+        "city": "Manama",
+    },
+    "sa-east-1": {
+        "description": "South America (São Paulo)",
+        "continent": "South America",
+        "country": "Brazil",
+        "city": "São Paulo",
+    },
+}
+
+# Common regions used as fallback when API calls fail
+FALLBACK_REGIONS = [
+    "us-east-1",
+    "us-east-2",
+    "us-west-1",
+    "us-west-2",
+    "eu-west-1",
+    "eu-west-2",
+    "eu-central-1",
+    "ap-northeast-1",
+    "ap-northeast-2",
+    "ap-southeast-1",
+    "ap-southeast-2",
+    "sa-east-1",
+]
+
 
 def get_aws_profiles() -> list[str]:
     """Get available AWS profiles from config and credentials files.
@@ -89,38 +241,7 @@ def get_aws_regions() -> list[dict[str, str]]:
         return regions
     except (BotoCoreError, ClientError) as e:
         logger.warning(f"Error fetching AWS regions: {e}")
-        return [
-            {"RegionName": "us-east-1", "RegionDescription": "US East (N. Virginia)"},
-            {"RegionName": "us-east-2", "RegionDescription": "US East (Ohio)"},
-            {"RegionName": "us-west-1", "RegionDescription": "US West (N. California)"},
-            {"RegionName": "us-west-2", "RegionDescription": "US West (Oregon)"},
-            {"RegionName": "eu-west-1", "RegionDescription": "EU West (Ireland)"},
-            {"RegionName": "eu-west-2", "RegionDescription": "EU West (London)"},
-            {
-                "RegionName": "eu-central-1",
-                "RegionDescription": "EU Central (Frankfurt)",
-            },
-            {
-                "RegionName": "ap-northeast-1",
-                "RegionDescription": "Asia Pacific (Tokyo)",
-            },
-            {
-                "RegionName": "ap-northeast-2",
-                "RegionDescription": "Asia Pacific (Seoul)",
-            },
-            {
-                "RegionName": "ap-southeast-1",
-                "RegionDescription": "Asia Pacific (Singapore)",
-            },
-            {
-                "RegionName": "ap-southeast-2",
-                "RegionDescription": "Asia Pacific (Sydney)",
-            },
-            {
-                "RegionName": "sa-east-1",
-                "RegionDescription": "South America (São Paulo)",
-            },
-        ]
+        return [{"RegionName": r, "RegionDescription": _get_region_description(r)} for r in FALLBACK_REGIONS]
     except Exception as e:
         logger.warning(f"Unexpected error fetching AWS regions: {e}")
         return []
@@ -135,32 +256,10 @@ def _get_region_description(region_code: str) -> str:
     Returns:
         Human-readable region description
     """
-    region_map = {
-        "us-east-1": "US East (N. Virginia)",
-        "us-east-2": "US East (Ohio)",
-        "us-west-1": "US West (N. California)",
-        "us-west-2": "US West (Oregon)",
-        "af-south-1": "Africa (Cape Town)",
-        "ap-east-1": "Asia Pacific (Hong Kong)",
-        "ap-south-1": "Asia Pacific (Mumbai)",
-        "ap-northeast-1": "Asia Pacific (Tokyo)",
-        "ap-northeast-2": "Asia Pacific (Seoul)",
-        "ap-northeast-3": "Asia Pacific (Osaka)",
-        "ap-southeast-1": "Asia Pacific (Singapore)",
-        "ap-southeast-2": "Asia Pacific (Sydney)",
-        "ap-southeast-3": "Asia Pacific (Jakarta)",
-        "ca-central-1": "Canada (Central)",
-        "eu-central-1": "EU Central (Frankfurt)",
-        "eu-west-1": "EU West (Ireland)",
-        "eu-west-2": "EU West (London)",
-        "eu-west-3": "EU West (Paris)",
-        "eu-north-1": "EU North (Stockholm)",
-        "eu-south-1": "EU South (Milan)",
-        "me-south-1": "Middle East (Bahrain)",
-        "sa-east-1": "South America (São Paulo)",
-    }
-
-    return region_map.get(region_code, f"AWS Region {region_code}")
+    metadata = REGION_METADATA.get(region_code)
+    if metadata:
+        return metadata["description"]
+    return f"AWS Region {region_code}"
 
 
 def get_region_available_services(session: boto3.session.Session, region_code: str) -> list[dict[str, str]]:
@@ -263,91 +362,14 @@ def _get_region_geographic_location(region_code: str) -> dict[str, str]:
     Returns:
         Dictionary with geographic information
     """
-    # Map of region codes to geographic information
-    geo_map = {
-        "us-east-1": {
-            "continent": "North America",
-            "country": "United States",
-            "city": "Ashburn, Virginia",
-        },
-        "us-east-2": {
-            "continent": "North America",
-            "country": "United States",
-            "city": "Columbus, Ohio",
-        },
-        "us-west-1": {
-            "continent": "North America",
-            "country": "United States",
-            "city": "San Francisco, California",
-        },
-        "us-west-2": {
-            "continent": "North America",
-            "country": "United States",
-            "city": "Portland, Oregon",
-        },
-        "af-south-1": {
-            "continent": "Africa",
-            "country": "South Africa",
-            "city": "Cape Town",
-        },
-        "ap-east-1": {"continent": "Asia", "country": "China", "city": "Hong Kong"},
-        "ap-south-1": {"continent": "Asia", "country": "India", "city": "Mumbai"},
-        "ap-northeast-1": {"continent": "Asia", "country": "Japan", "city": "Tokyo"},
-        "ap-northeast-2": {
-            "continent": "Asia",
-            "country": "South Korea",
-            "city": "Seoul",
-        },
-        "ap-northeast-3": {"continent": "Asia", "country": "Japan", "city": "Osaka"},
-        "ap-southeast-1": {
-            "continent": "Asia",
-            "country": "Singapore",
-            "city": "Singapore",
-        },
-        "ap-southeast-2": {
-            "continent": "Oceania",
-            "country": "Australia",
-            "city": "Sydney",
-        },
-        "ap-southeast-3": {
-            "continent": "Asia",
-            "country": "Indonesia",
-            "city": "Jakarta",
-        },
-        "ca-central-1": {
-            "continent": "North America",
-            "country": "Canada",
-            "city": "Montreal",
-        },
-        "eu-central-1": {
-            "continent": "Europe",
-            "country": "Germany",
-            "city": "Frankfurt",
-        },
-        "eu-west-1": {"continent": "Europe", "country": "Ireland", "city": "Dublin"},
-        "eu-west-2": {
-            "continent": "Europe",
-            "country": "United Kingdom",
-            "city": "London",
-        },
-        "eu-west-3": {"continent": "Europe", "country": "France", "city": "Paris"},
-        "eu-north-1": {"continent": "Europe", "country": "Sweden", "city": "Stockholm"},
-        "eu-south-1": {"continent": "Europe", "country": "Italy", "city": "Milan"},
-        "me-south-1": {
-            "continent": "Middle East",
-            "country": "Bahrain",
-            "city": "Manama",
-        },
-        "sa-east-1": {
-            "continent": "South America",
-            "country": "Brazil",
-            "city": "São Paulo",
-        },
-    }
-
-    # Return default information if region not found
-    default_geo = {"continent": "Unknown", "country": "Unknown", "city": "Unknown"}
-    return geo_map.get(region_code, default_geo)
+    metadata = REGION_METADATA.get(region_code)
+    if metadata:
+        return {
+            "continent": metadata["continent"],
+            "country": metadata["country"],
+            "city": metadata["city"],
+        }
+    return {"continent": "Unknown", "country": "Unknown", "city": "Unknown"}
 
 
 def get_region_details(region_code: str) -> dict[str, Any]:
