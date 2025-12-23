@@ -10,6 +10,7 @@ import logging
 import sys
 
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from aws_mcp_server.cli_executor import (
@@ -45,7 +46,12 @@ register_prompts(mcp)
 register_resources(mcp)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="AWS CLI Help",
+        readOnlyHint=True,
+    ),
+)
 async def aws_cli_help(
     service: str = Field(description="AWS service name (e.g., 's3', 'ec2', 'lambda', 'iam')"),
     command: str | None = Field(
@@ -81,7 +87,13 @@ async def aws_cli_help(
         return CommandHelpResult(help_text=f"Error retrieving help: {str(e)}")
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="AWS CLI Pipeline",
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def aws_cli_pipeline(
     command: str = Field(description="AWS CLI command, optionally piped to Unix tools for filtering and transformation"),
     timeout: int | None = Field(
