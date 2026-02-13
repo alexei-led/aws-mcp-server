@@ -82,4 +82,6 @@ ENV HOME="/home/appuser" \
 EXPOSE 8000
 
 # Set command to run the server
+# Ensure Docker sends SIGTERM for graceful shutdown
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["aws-mcp"]
