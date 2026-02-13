@@ -2,7 +2,7 @@
 
 import select
 import threading
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 from aws_mcp_server.__main__ import handle_interrupt, monitor_stdio_disconnect
 

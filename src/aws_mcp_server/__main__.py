@@ -25,7 +25,7 @@ logging.basicConfig(
 def handle_interrupt(signum, frame):
     """Handle interrupt signal by exiting cleanly."""
     logger.info(f"Received signal {signum}, shutting down...")
-    raise SystemExit(0)
+    raise SystemExit(0) from None
 
 
 def request_shutdown() -> None:
@@ -117,7 +117,7 @@ def main():
                 monitor_thread.join(timeout=1)
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received. Shutting down...")
-        raise SystemExit(0)
+        raise SystemExit(0) from None
 
 
 if __name__ == "__main__":
