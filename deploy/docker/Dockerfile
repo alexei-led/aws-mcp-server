@@ -81,5 +81,8 @@ ENV HOME="/home/appuser" \
 # Expose the service port
 EXPOSE 8000
 
+# Use SIGTERM for graceful shutdown in container runtimes
+STOPSIGNAL SIGTERM
+
 # Set command to run the server
 ENTRYPOINT ["aws-mcp"]
