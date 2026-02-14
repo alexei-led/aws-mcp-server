@@ -163,9 +163,7 @@ async def execute_aws_command(command: str, timeout: int | None = None) -> Comma
     command = _add_ec2_region_if_needed(command)
     cmd_parts = shlex.split(command)
     if not cmd_parts:
-        raise CommandExecutionError(
-            "Empty command. Expected format: 'aws <service> <command> [options]' (e.g., 'aws s3 ls', 'aws ec2 describe-instances')"
-        )
+        raise CommandExecutionError("Empty command. Expected format: 'aws <service> <command> [options]' (e.g., 'aws s3 ls', 'aws ec2 describe-instances')")
 
     try:
         logger.debug(f"Executing: {command} (sandbox: {sandbox_available()})")

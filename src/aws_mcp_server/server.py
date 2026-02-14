@@ -38,14 +38,9 @@ def run_startup_checks():
     logger.info("AWS CLI is installed and available")
 
 
-SERVER_DESCRIPTION = (
-    "A lightweight MCP server that enables AI assistants to execute AWS CLI commands"
-    " through the Model Context Protocol"
-)
+SERVER_DESCRIPTION = "A lightweight MCP server that enables AI assistants to execute AWS CLI commands through the Model Context Protocol"
 
-SERVER_ICON_URL = (
-    "https://raw.githubusercontent.com/alexei-led/aws-mcp-server/main/media/aws-mcp-logo.png"
-)
+SERVER_ICON_URL = "https://raw.githubusercontent.com/alexei-led/aws-mcp-server/main/media/aws-mcp-logo.png"
 
 mcp = FastMCP(
     "AWS MCP Server",

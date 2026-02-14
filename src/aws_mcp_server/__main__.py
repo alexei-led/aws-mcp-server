@@ -11,6 +11,7 @@ import signal
 import sys
 import threading
 import time
+import warnings
 from collections.abc import Callable
 
 from aws_mcp_server.server import logger, mcp, run_startup_checks
@@ -80,8 +81,9 @@ def main():
     try:
         from aws_mcp_server.config import TRANSPORT, is_docker_environment
 
-        if TRANSPORT not in ("stdio", "sse"):
-            logger.error(f"Invalid transport protocol: {TRANSPORT}. Must be 'stdio' or 'sse'")
+        valid_transports = ("stdio", "sse", "streamable-http")
+        if TRANSPORT not in valid_transports:
+            logger.error(f"Invalid transport protocol: {TRANSPORT}. Must be one of: {', '.join(valid_transports)}")
             sys.exit(1)
 
         logger.info(f"Starting server with transport protocol: {TRANSPORT}")
@@ -90,10 +92,18 @@ def main():
         monitor_thread: threading.Thread | None = None
 
         if TRANSPORT == "sse":
+            warnings.warn(
+                "SSE transport is deprecated and will be removed in a future release. Use 'streamable-http' instead.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+            logger.warning("SSE transport is deprecated. Use 'streamable-http' instead.")
+
+        if TRANSPORT in ("sse", "streamable-http"):
             # Bind to 0.0.0.0 in Docker (required for port mapping), 127.0.0.1 otherwise
             host = "0.0.0.0" if is_docker_environment() else "127.0.0.1"
             mcp.settings.host = host
-            logger.info(f"SSE server binding to {host}:{mcp.settings.port}")
+            logger.info(f"{TRANSPORT} server binding to {host}:{mcp.settings.port}")
         else:
             monitor_stop_event = threading.Event()
             monitor_thread = threading.Thread(

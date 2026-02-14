@@ -24,12 +24,12 @@ Current version: 1.5.6. Target: 1.6.0.
 - [x] Run validation commands. Fix any lint errors.
 
 ### Task 4: Add Streamable HTTP transport support (issue #33)
-- [ ] In `src/aws_mcp_server/config.py`, add `"streamable-http"` as a valid transport option alongside `"stdio"` and `"sse"`. Update the `TRANSPORT` variable validation.
-- [ ] In `src/aws_mcp_server/__main__.py`, add handling for the `"streamable-http"` transport: set `mcp.settings.host` like SSE (0.0.0.0 in Docker, 127.0.0.1 otherwise). The FastMCP library already has `streamable_http_path` support. Call `mcp.run(transport="streamable-http")`.
-- [ ] Keep `sse` transport working for backward compatibility but log a deprecation warning when it's used.
-- [ ] Update `README.md` to document the new transport option, including Docker run examples with `AWS_MCP_TRANSPORT=streamable-http`.
-- [ ] Add unit tests for transport configuration validation.
-- [ ] Run validation commands. Fix any lint errors.
+- [x] In `src/aws_mcp_server/config.py`, add `"streamable-http"` as a valid transport option alongside `"stdio"` and `"sse"`. Update the `TRANSPORT` variable validation.
+- [x] In `src/aws_mcp_server/__main__.py`, add handling for the `"streamable-http"` transport: set `mcp.settings.host` like SSE (0.0.0.0 in Docker, 127.0.0.1 otherwise). The FastMCP library already has `streamable_http_path` support. Call `mcp.run(transport="streamable-http")`.
+- [x] Keep `sse` transport working for backward compatibility but log a deprecation warning when it's used.
+- [x] Update `README.md` to document the new transport option, including Docker run examples with `AWS_MCP_TRANSPORT=streamable-http`.
+- [x] Add unit tests for transport configuration validation.
+- [x] Run validation commands. Fix any lint errors.
 
 ### Task 5: Merge PR #32 and prepare release
 - [ ] Do NOT create a git tag or GitHub release — that will be done manually.

@@ -427,7 +427,7 @@ def test_resource_aws_profiles(mock_environ_get, mock_get_aws_profiles):
 @patch("os.environ.get")
 def test_resource_aws_regions(mock_environ_get, mock_get_aws_regions):
     """Test the aws_regions resource function implementation."""
-    mock_environ_get.side_effect = lambda key, default=None: ("us-west-2" if key in ("AWS_REGION", "AWS_DEFAULT_REGION") else default)
+    mock_environ_get.side_effect = lambda key, default=None: "us-west-2" if key in ("AWS_REGION", "AWS_DEFAULT_REGION") else default
 
     mock_get_aws_regions.return_value = [
         {"RegionName": "us-east-1", "RegionDescription": "US East (N. Virginia)"},
