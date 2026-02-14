@@ -142,9 +142,8 @@ async def test_execute_aws_command_truncate_output():
 
 @pytest.mark.asyncio
 async def test_execute_aws_command_empty():
-    result = await execute_aws_command("")
-    assert result["status"] == "error"
-    assert "Empty command" in result["output"]
+    with pytest.raises(CommandExecutionError, match="Empty command"):
+        await execute_aws_command("")
 
 
 @pytest.mark.parametrize(
@@ -333,9 +332,8 @@ async def test_execute_pipe_command_ec2_with_region_equals_syntax():
 
 @pytest.mark.asyncio
 async def test_execute_pipe_command_empty():
-    result = await execute_pipe_command("")
-    assert result["status"] == "error"
-    assert "Empty command" in result["output"]
+    with pytest.raises(CommandExecutionError, match="Empty command"):
+        await execute_pipe_command("")
 
 
 @pytest.mark.asyncio

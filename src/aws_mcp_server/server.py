@@ -9,6 +9,7 @@ import asyncio
 import logging
 import sys
 
+from fastmcp.exceptions import ToolError
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import Icon, ToolAnnotations
 from pydantic import Field
@@ -94,7 +95,7 @@ async def aws_cli_help(
         return result
     except Exception as e:
         logger.error(f"Error in aws_cli_help: {e}")
-        return CommandHelpResult(help_text=f"Error retrieving help: {str(e)}")
+        raise ToolError(f"Error retrieving help: {e}") from e
 
 
 @mcp.tool(
@@ -159,7 +160,7 @@ async def aws_cli_pipeline(
         return CommandResult(status=result["status"], output=result["output"])
     except CommandExecutionError as e:
         logger.warning(f"Command execution error: {e}")
-        return CommandResult(status="error", output=f"Command execution error: {str(e)}")
+        raise ToolError(f"Command execution error: {e}") from e
     except Exception as e:
         logger.error(f"Error in aws_cli_pipeline: {e}")
-        return CommandResult(status="error", output=f"Unexpected error: {str(e)}")
+        raise ToolError(f"Unexpected error: {e}") from e

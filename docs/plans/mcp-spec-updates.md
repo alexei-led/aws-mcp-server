@@ -18,10 +18,10 @@ Current version: 1.5.6. Target: 1.6.0.
 - [x] Run validation commands. Fix any lint errors.
 
 ### Task 3: Return input validation errors as tool execution errors (issue #34)
-- [ ] In `src/aws_mcp_server/server.py`, review `aws_cli_help` and `aws_cli_pipeline` tool functions. Currently exceptions are caught and returned as `CommandResult(status="error", ...)`. Ensure that input validation errors (like missing/invalid parameters) are returned as tool results with `isError=True` in the MCP response, NOT as JSON-RPC protocol errors. Check if FastMCP already handles this via return types or if we need to use `mcp.types.TextContent` with `isError`.
-- [ ] In `src/aws_mcp_server/cli_executor.py`, check if `CommandExecutionError` is raised for validation issues and ensure it's caught at the tool level and returned as a tool error result.
-- [ ] Add a unit test that verifies an invalid command returns a tool execution error (not a protocol error).
-- [ ] Run validation commands. Fix any lint errors.
+- [x] In `src/aws_mcp_server/server.py`, review `aws_cli_help` and `aws_cli_pipeline` tool functions. Currently exceptions are caught and returned as `CommandResult(status="error", ...)`. Ensure that input validation errors (like missing/invalid parameters) are returned as tool results with `isError=True` in the MCP response, NOT as JSON-RPC protocol errors. Check if FastMCP already handles this via return types or if we need to use `mcp.types.TextContent` with `isError`.
+- [x] In `src/aws_mcp_server/cli_executor.py`, check if `CommandExecutionError` is raised for validation issues and ensure it's caught at the tool level and returned as a tool error result.
+- [x] Add a unit test that verifies an invalid command returns a tool execution error (not a protocol error).
+- [x] Run validation commands. Fix any lint errors.
 
 ### Task 4: Add Streamable HTTP transport support (issue #33)
 - [ ] In `src/aws_mcp_server/config.py`, add `"streamable-http"` as a valid transport option alongside `"stdio"` and `"sse"`. Update the `TRANSPORT` variable validation.
