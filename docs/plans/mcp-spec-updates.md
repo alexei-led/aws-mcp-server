@@ -13,9 +13,9 @@ Current version: 1.5.6. Target: 1.6.0.
 - [x] Run validation commands. Fix any lint errors (especially B904, F401).
 
 ### Task 2: Add tool icons metadata (issue #36)
-- [ ] Check if FastMCP's `@mcp.tool()` decorator or `ToolAnnotations` supports an `icons` field. The FastMCP constructor accepts `icons` parameter. If tool-level icons are not supported in the current `mcp` library version, add server-level icons only.
-- [ ] For server-level icons: update `FastMCP()` constructor in `src/aws_mcp_server/server.py` to include `icons=[{"url": "https://raw.githubusercontent.com/alexei-led/aws-mcp-server/main/media/aws-mcp-logo.png", "mediaType": "image/png"}]` (or similar, check the API).
-- [ ] Run validation commands. Fix any lint errors.
+- [x] Check if FastMCP's `@mcp.tool()` decorator or `ToolAnnotations` supports an `icons` field. The FastMCP constructor accepts `icons` parameter. If tool-level icons are not supported in the current `mcp` library version, add server-level icons only.
+- [x] For server-level icons: update `FastMCP()` constructor in `src/aws_mcp_server/server.py` to include `icons=[{"url": "https://raw.githubusercontent.com/alexei-led/aws-mcp-server/main/media/aws-mcp-logo.png", "mediaType": "image/png"}]` (or similar, check the API).
+- [x] Run validation commands. Fix any lint errors.
 
 ### Task 3: Return input validation errors as tool execution errors (issue #34)
 - [ ] In `src/aws_mcp_server/server.py`, review `aws_cli_help` and `aws_cli_pipeline` tool functions. Currently exceptions are caught and returned as `CommandResult(status="error", ...)`. Ensure that input validation errors (like missing/invalid parameters) are returned as tool results with `isError=True` in the MCP response, NOT as JSON-RPC protocol errors. Check if FastMCP already handles this via return types or if we need to use `mcp.types.TextContent` with `isError`.

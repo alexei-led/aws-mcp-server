@@ -10,7 +10,7 @@ import logging
 import sys
 
 from mcp.server.fastmcp import Context, FastMCP
-from mcp.types import ToolAnnotations
+from mcp.types import Icon, ToolAnnotations
 from pydantic import Field
 
 from aws_mcp_server.cli_executor import (
@@ -42,9 +42,14 @@ SERVER_DESCRIPTION = (
     " through the Model Context Protocol"
 )
 
+SERVER_ICON_URL = (
+    "https://raw.githubusercontent.com/alexei-led/aws-mcp-server/main/media/aws-mcp-logo.png"
+)
+
 mcp = FastMCP(
     "AWS MCP Server",
     instructions=f"{SERVER_DESCRIPTION}\n{INSTRUCTIONS}",
+    icons=[Icon(src=SERVER_ICON_URL, mimeType="image/png")],
 )
 
 register_prompts(mcp)

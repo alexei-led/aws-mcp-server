@@ -7,6 +7,7 @@ import pytest
 from aws_mcp_server.cli_executor import CommandExecutionError
 from aws_mcp_server.server import (
     SERVER_DESCRIPTION,
+    SERVER_ICON_URL,
     aws_cli_help,
     aws_cli_pipeline,
     mcp,
@@ -199,3 +200,11 @@ def test_mcp_server_has_description():
     assert "MCP server" in SERVER_DESCRIPTION
     assert "AWS CLI" in SERVER_DESCRIPTION
     assert SERVER_DESCRIPTION in mcp._mcp_server.instructions
+
+
+def test_mcp_server_has_icons():
+    icons = mcp._mcp_server.icons
+    assert icons is not None
+    assert len(icons) == 1
+    assert icons[0].src == SERVER_ICON_URL
+    assert icons[0].mimeType == "image/png"
