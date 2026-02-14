@@ -10,7 +10,8 @@ import logging
 import sys
 
 from mcp.server.fastmcp import Context, FastMCP
-from mcp.types import ToolAnnotations
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import Icon, ToolAnnotations
 from pydantic import Field
 
 from aws_mcp_server.cli_executor import (
@@ -37,9 +38,14 @@ def run_startup_checks():
     logger.info("AWS CLI is installed and available")
 
 
+SERVER_DESCRIPTION = "A lightweight MCP server that enables AI assistants to execute AWS CLI commands through the Model Context Protocol"
+
+SERVER_ICON_URL = "https://raw.githubusercontent.com/alexei-led/aws-mcp-server/main/media/aws-mcp-logo.png"
+
 mcp = FastMCP(
     "AWS MCP Server",
-    instructions=INSTRUCTIONS,
+    instructions=f"{SERVER_DESCRIPTION}\n{INSTRUCTIONS}",
+    icons=[Icon(src=SERVER_ICON_URL, mimeType="image/png")],
 )
 
 register_prompts(mcp)
@@ -84,7 +90,7 @@ async def aws_cli_help(
         return result
     except Exception as e:
         logger.error(f"Error in aws_cli_help: {e}")
-        return CommandHelpResult(help_text=f"Error retrieving help: {str(e)}")
+        raise ToolError(f"Error retrieving help: {e}") from e
 
 
 @mcp.tool(
@@ -142,14 +148,16 @@ async def aws_cli_pipeline(
         if result["status"] == "success":
             if ctx:
                 await ctx.info("Command executed successfully")
-        else:
-            if ctx:
-                await ctx.warning("Command failed")
+            return CommandResult(status=result["status"], output=result["output"])
 
-        return CommandResult(status=result["status"], output=result["output"])
+        if ctx:
+            await ctx.warning("Command failed")
+        raise ToolError(result["output"])
+    except ToolError:
+        raise
     except CommandExecutionError as e:
         logger.warning(f"Command execution error: {e}")
-        return CommandResult(status="error", output=f"Command execution error: {str(e)}")
+        raise ToolError(f"Command execution error: {e}") from e
     except Exception as e:
         logger.error(f"Error in aws_cli_pipeline: {e}")
-        return CommandResult(status="error", output=f"Unexpected error: {str(e)}")
+        raise ToolError(f"Unexpected error: {e}") from e

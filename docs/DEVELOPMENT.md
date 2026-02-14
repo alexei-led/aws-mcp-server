@@ -49,7 +49,10 @@ make uv-dev-install
 # Standard mode (stdio transport)
 python -m aws_mcp_server
 
-# SSE transport mode
+# Streamable HTTP transport mode (recommended over SSE)
+AWS_MCP_TRANSPORT=streamable-http python -m aws_mcp_server
+
+# SSE transport mode (deprecated, use streamable-http instead)
 AWS_MCP_TRANSPORT=sse python -m aws_mcp_server
 
 # With sandbox disabled (for development)

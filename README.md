@@ -31,6 +31,14 @@ flowchart LR
     IAM[Your IAM Policy] -.->|controls| AWS
 ```
 
+## What's New
+
+- **Streamable HTTP transport** — New `streamable-http` transport for web-based MCP clients, replacing the deprecated `sse` transport ([#33](https://github.com/alexei-led/aws-mcp-server/issues/33))
+- **Input validation error handling** — Validation errors now return proper MCP tool errors (`isError: true`) instead of regular results ([#34](https://github.com/alexei-led/aws-mcp-server/issues/34))
+- **Server description** — Server advertises its purpose to MCP clients via the `instructions` field ([#35](https://github.com/alexei-led/aws-mcp-server/issues/35))
+- **Server icons** — Server provides icon metadata for MCP client display ([#36](https://github.com/alexei-led/aws-mcp-server/issues/36))
+- **Graceful shutdown** — Server disconnects cleanly when the MCP client disconnects ([#16](https://github.com/alexei-led/aws-mcp-server/issues/16))
+
 ## Quick Start
 
 ### Prerequisites
@@ -96,6 +104,21 @@ Docker provides stronger isolation by running commands in a container:
 
 > **Note**: Replace `~/.aws` with the full path on Windows (e.g., `C:\Users\YOU\.aws`).
 
+### Docker with Streamable HTTP Transport
+
+For web-based MCP clients, use the `streamable-http` transport:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e AWS_MCP_TRANSPORT=streamable-http \
+  -v ~/.aws:/home/appuser/.aws:ro \
+  ghcr.io/alexei-led/aws-mcp-server:latest
+```
+
+The server will be available at `http://localhost:8000/mcp`.
+
+> **Note**: The `sse` transport is deprecated. Use `streamable-http` instead.
+
 ## AWS Credentials
 
 The server uses the standard AWS credential chain. Your credentials are discovered automatically from:
@@ -138,7 +161,7 @@ To use a specific profile:
 | ----------------------------- | ------------------------------------------------ | -------- |
 | `AWS_MCP_TIMEOUT`             | Command execution timeout in seconds             | `300`    |
 | `AWS_MCP_MAX_OUTPUT`          | Maximum output size in characters                | `100000` |
-| `AWS_MCP_TRANSPORT`           | Transport protocol (`stdio` or `sse`)            | `stdio`  |
+| `AWS_MCP_TRANSPORT`           | Transport protocol (`stdio`, `sse`, or `streamable-http`) | `stdio`  |
 | `AWS_MCP_SANDBOX`             | Sandbox mode (`auto`, `disabled`, `required`)    | `auto`   |
 | `AWS_MCP_SANDBOX_CREDENTIALS` | Credential passing (`env`, `aws_config`, `both`) | `both`   |
 

@@ -163,10 +163,7 @@ async def execute_aws_command(command: str, timeout: int | None = None) -> Comma
     command = _add_ec2_region_if_needed(command)
     cmd_parts = shlex.split(command)
     if not cmd_parts:
-        return CommandResult(
-            status="error",
-            output="Empty command. Expected format: 'aws <service> <command> [options]' (e.g., 'aws s3 ls', 'aws ec2 describe-instances')",
-        )
+        raise CommandExecutionError("Empty command. Expected format: 'aws <service> <command> [options]' (e.g., 'aws s3 ls', 'aws ec2 describe-instances')")
 
     try:
         logger.debug(f"Executing: {command} (sandbox: {sandbox_available()})")
@@ -208,9 +205,8 @@ async def execute_pipe_command(pipe_command: str, timeout: int | None = None) ->
     """
     commands = split_pipe_command(pipe_command)
     if not commands:
-        return CommandResult(
-            status="error",
-            output="Empty command. Expected format: 'aws <service> <command> [options]' optionally piped to Unix tools (e.g., 'aws s3 ls | grep bucket')",
+        raise CommandExecutionError(
+            "Empty command. Expected format: 'aws <service> <command> [options]' optionally piped to Unix tools (e.g., 'aws s3 ls | grep bucket')"
         )
 
     if timeout is None:
@@ -241,7 +237,11 @@ async def execute_pipe_command(pipe_command: str, timeout: int | None = None) ->
 
 
 async def get_command_help(service: str, command: str | None = None) -> CommandHelpResult:
-    """Get help documentation for an AWS CLI service or command."""
+    """Get help documentation for an AWS CLI service or command.
+
+    Raises:
+        CommandExecutionError: If the help command fails to execute.
+    """
     cmd_parts = ["aws", service]
     if command:
         cmd_parts.append(command)
@@ -249,11 +249,6 @@ async def get_command_help(service: str, command: str | None = None) -> CommandH
 
     cmd_str = " ".join(cmd_parts)
 
-    try:
-        result = await execute_aws_command(cmd_str)
-        help_text = result["output"] if result["status"] == "success" else f"Error: {result['output']}"
-        return CommandHelpResult(help_text=help_text)
-    except CommandExecutionError as e:
-        return CommandHelpResult(help_text=f"Error retrieving help: {e}")
-    except Exception as e:
-        return CommandHelpResult(help_text=f"Error retrieving help: {e}")
+    result = await execute_aws_command(cmd_str)
+    help_text = result["output"] if result["status"] == "success" else f"Error: {result['output']}"
+    return CommandHelpResult(help_text=help_text)

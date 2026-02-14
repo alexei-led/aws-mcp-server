@@ -96,3 +96,5 @@ local_settings.py
 *.tgz
 *.zip
 *.gz
+# ralphex progress logs
+progress*.txt

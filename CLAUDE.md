@@ -17,7 +17,8 @@
 ### Running the server
 
 - Run server: `python -m aws_mcp_server`
-- Run server with SSE transport: `AWS_MCP_TRANSPORT=sse python -m aws_mcp_server`
+- Run server with Streamable HTTP transport: `AWS_MCP_TRANSPORT=streamable-http python -m aws_mcp_server`
+- Run server with SSE transport (deprecated): `AWS_MCP_TRANSPORT=sse python -m aws_mcp_server`
 - Run with sandbox disabled: `AWS_MCP_SANDBOX=disabled python -m aws_mcp_server`
 - Run with MCP CLI: `mcp run src/aws_mcp_server/server.py`
 

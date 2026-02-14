@@ -142,9 +142,8 @@ async def test_execute_aws_command_truncate_output():
 
 @pytest.mark.asyncio
 async def test_execute_aws_command_empty():
-    result = await execute_aws_command("")
-    assert result["status"] == "error"
-    assert "Empty command" in result["output"]
+    with pytest.raises(CommandExecutionError, match="Empty command"):
+        await execute_aws_command("")
 
 
 @pytest.mark.parametrize(
@@ -201,12 +200,11 @@ async def test_check_aws_cli_installed(returncode, stdout, stderr, exception, ex
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "service,command,mock_type,mock_value,expected_text,expected_call",
+    "service,command,mock_value,expected_text,expected_call",
     [
         (
             "s3",
             "ls",
-            "return_value",
             {"status": "success", "output": "Help text"},
             "Help text",
             "aws s3 ls help",
@@ -214,7 +212,6 @@ async def test_check_aws_cli_installed(returncode, stdout, stderr, exception, ex
         (
             "s3",
             None,
-            "return_value",
             {"status": "success", "output": "Help text for service"},
             "Help text for service",
             "aws s3 help",
@@ -222,42 +219,36 @@ async def test_check_aws_cli_installed(returncode, stdout, stderr, exception, ex
         (
             "s3",
             "ls",
-            "side_effect",
-            CommandExecutionError("Test execution error"),
-            "Error retrieving help: Test execution error",
-            None,
-        ),
-        (
-            "s3",
-            "ls",
-            "side_effect",
-            Exception("Test exception"),
-            "Error retrieving help: Test exception",
-            None,
-        ),
-        (
-            "s3",
-            "ls",
-            "return_value",
             {"status": "error", "output": "Command failed"},
             "Error: Command failed",
             "aws s3 ls help",
         ),
     ],
 )
-async def test_get_command_help(service, command, mock_type, mock_value, expected_text, expected_call):
+async def test_get_command_help(service, command, mock_value, expected_text, expected_call):
     with patch("aws_mcp_server.cli_executor.execute_aws_command", new_callable=AsyncMock) as mock_execute:
-        if mock_type == "return_value":
-            mock_execute.return_value = mock_value
-        else:
-            mock_execute.side_effect = mock_value
+        mock_execute.return_value = mock_value
 
         result = await get_command_help(service, command)
 
         assert expected_text in result["help_text"]
+        mock_execute.assert_called_once_with(expected_call)
 
-        if expected_call:
-            mock_execute.assert_called_once_with(expected_call)
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exception",
+    [
+        CommandExecutionError("Test execution error"),
+        Exception("Test exception"),
+    ],
+)
+async def test_get_command_help_propagates_exceptions(exception):
+    with patch("aws_mcp_server.cli_executor.execute_aws_command", new_callable=AsyncMock) as mock_execute:
+        mock_execute.side_effect = exception
+
+        with pytest.raises(type(exception)):
+            await get_command_help("s3", "ls")
 
 
 @pytest.mark.asyncio
@@ -333,9 +324,8 @@ async def test_execute_pipe_command_ec2_with_region_equals_syntax():
 
 @pytest.mark.asyncio
 async def test_execute_pipe_command_empty():
-    result = await execute_pipe_command("")
-    assert result["status"] == "error"
-    assert "Empty command" in result["output"]
+    with pytest.raises(CommandExecutionError, match="Empty command"):
+        await execute_pipe_command("")
 
 
 @pytest.mark.asyncio
