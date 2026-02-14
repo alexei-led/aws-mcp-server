@@ -97,3 +97,8 @@ exclude_lines = [
 [tool.setuptools_scm]
 fallback_version = "0.0.0-dev0"
 local_scheme = "no-local-version"
+
+[dependency-groups]
+dev = [
+    "pytest-timeout>=2.4.0",
+]

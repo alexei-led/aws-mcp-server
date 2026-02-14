@@ -32,7 +32,7 @@ format: ## Format code with ruff
 	ruff format src/ tests/
 
 test: ## Run tests excluding integration tests
-	python -m pytest -v -m "not integration" --cov=aws_mcp_server --cov-report=xml --cov-report=term
+	python -m pytest -v -m "not integration" --timeout=60 --cov=aws_mcp_server --cov-report=xml --cov-report=term
 
 test-unit: ## Run unit tests only (all tests except integration tests)
 	python -m pytest -v -m "not integration" --cov=aws_mcp_server --cov-report=term
