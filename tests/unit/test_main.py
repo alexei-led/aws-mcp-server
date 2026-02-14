@@ -57,11 +57,13 @@ def test_invalid_transport_exits():
     with (
         patch("aws_mcp_server.__main__.run_startup_checks"),
         patch("aws_mcp_server.config.TRANSPORT", "invalid"),
-        patch("aws_mcp_server.__main__.mcp"),
-        patch("sys.exit") as mock_exit,
+        patch("aws_mcp_server.__main__.mcp") as mock_mcp,
+        patch("sys.exit", side_effect=SystemExit(1)) as mock_exit,
     ):
-        main()
+        with pytest.raises(SystemExit):
+            main()
         mock_exit.assert_called_once_with(1)
+        mock_mcp.run.assert_not_called()
 
 
 def test_sse_transport_emits_deprecation_warning():

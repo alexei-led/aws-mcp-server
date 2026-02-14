@@ -74,7 +74,7 @@ async def test_aws_cli_help_exception_handling():
         "aws_mcp_server.server.get_command_help",
         side_effect=Exception("Test exception"),
     ):
-        with pytest.raises(ToolError, match="Error retrieving help"):
+        with pytest.raises(ToolError, match="Error retrieving help.*Test exception"):
             await aws_cli_help(service="s3")
 
 
