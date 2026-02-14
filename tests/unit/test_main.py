@@ -26,11 +26,13 @@ def test_monitor_stdio_disconnect_triggers_shutdown_on_pollhup():
     shutdown_callback = Mock()
     stop_event = threading.Event()
 
-    monitor_stdio_disconnect(
-        stop_event=stop_event,
-        shutdown_callback=shutdown_callback,
-        poller_factory=Mock(return_value=mock_poller),
-    )
+    with patch("sys.stdin") as mock_stdin:
+        mock_stdin.fileno.return_value = 0
+        monitor_stdio_disconnect(
+            stop_event=stop_event,
+            shutdown_callback=shutdown_callback,
+            poller_factory=Mock(return_value=mock_poller),
+        )
 
     shutdown_callback.assert_called_once_with()
 
