@@ -8,9 +8,9 @@ Current version: 1.5.6. Target: 1.6.0.
 - `UV_CACHE_DIR=/tmp/uv-cache uv run pytest -q tests/unit/ -x --timeout=30`
 
 ### Task 1: Add Implementation description field (issue #35)
-- [ ] In `src/aws_mcp_server/server.py`, update the FastMCP constructor to include a `description` parameter: `description="A lightweight MCP server that enables AI assistants to execute AWS CLI commands through the Model Context Protocol"`. This is a simple one-line addition.
-- [ ] Add a unit test in `tests/unit/test_server.py` that verifies `mcp.settings.description` (or equivalent) is set and non-empty.
-- [ ] Run validation commands. Fix any lint errors (especially B904, F401).
+- [x] In `src/aws_mcp_server/server.py`, update the FastMCP constructor to include a `description` parameter: `description="A lightweight MCP server that enables AI assistants to execute AWS CLI commands through the Model Context Protocol"`. This is a simple one-line addition.
+- [x] Add a unit test in `tests/unit/test_server.py` that verifies `mcp.settings.description` (or equivalent) is set and non-empty.
+- [x] Run validation commands. Fix any lint errors (especially B904, F401).
 
 ### Task 2: Add tool icons metadata (issue #36)
 - [ ] Check if FastMCP's `@mcp.tool()` decorator or `ToolAnnotations` supports an `icons` field. The FastMCP constructor accepts `icons` parameter. If tool-level icons are not supported in the current `mcp` library version, add server-level icons only.

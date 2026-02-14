@@ -37,9 +37,14 @@ def run_startup_checks():
     logger.info("AWS CLI is installed and available")
 
 
+SERVER_DESCRIPTION = (
+    "A lightweight MCP server that enables AI assistants to execute AWS CLI commands"
+    " through the Model Context Protocol"
+)
+
 mcp = FastMCP(
     "AWS MCP Server",
-    instructions=INSTRUCTIONS,
+    instructions=f"{SERVER_DESCRIPTION}\n{INSTRUCTIONS}",
 )
 
 register_prompts(mcp)

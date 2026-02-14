@@ -6,6 +6,7 @@ import pytest
 
 from aws_mcp_server.cli_executor import CommandExecutionError
 from aws_mcp_server.server import (
+    SERVER_DESCRIPTION,
     aws_cli_help,
     aws_cli_pipeline,
     mcp,
@@ -191,3 +192,10 @@ async def test_mcp_server_initialization():
 
     assert callable(aws_cli_help)
     assert callable(aws_cli_pipeline)
+
+
+def test_mcp_server_has_description():
+    assert SERVER_DESCRIPTION
+    assert "MCP server" in SERVER_DESCRIPTION
+    assert "AWS CLI" in SERVER_DESCRIPTION
+    assert SERVER_DESCRIPTION in mcp._mcp_server.instructions
