@@ -32,5 +32,5 @@ Current version: 1.5.6. Target: 1.6.0.
 - [x] Run validation commands. Fix any lint errors.
 
 ### Task 5: Merge PR #32 and prepare release
-- [ ] Do NOT create a git tag or GitHub release — that will be done manually.
-- [ ] Update README.md changelog/features section if it exists, mentioning: graceful shutdown on client disconnect (#16), streamable HTTP transport (#33), input validation error handling (#34), implementation description (#35), server icons (#36).
+- [x] Do NOT create a git tag or GitHub release — that will be done manually.
+- [x] Update README.md changelog/features section if it exists, mentioning: graceful shutdown on client disconnect (#16), streamable HTTP transport (#33), input validation error handling (#34), implementation description (#35), server icons (#36).

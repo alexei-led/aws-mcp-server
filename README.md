@@ -31,6 +31,14 @@ flowchart LR
     IAM[Your IAM Policy] -.->|controls| AWS
 ```
 
+## What's New
+
+- **Streamable HTTP transport** — New `streamable-http` transport for web-based MCP clients, replacing the deprecated `sse` transport ([#33](https://github.com/alexei-led/aws-mcp-server/issues/33))
+- **Input validation error handling** — Validation errors now return proper MCP tool errors (`isError: true`) instead of regular results ([#34](https://github.com/alexei-led/aws-mcp-server/issues/34))
+- **Server description** — Server advertises its purpose to MCP clients via the `instructions` field ([#35](https://github.com/alexei-led/aws-mcp-server/issues/35))
+- **Server icons** — Server provides icon metadata for MCP client display ([#36](https://github.com/alexei-led/aws-mcp-server/issues/36))
+- **Graceful shutdown** — Server disconnects cleanly when the MCP client disconnects ([#16](https://github.com/alexei-led/aws-mcp-server/issues/16))
+
 ## Quick Start
 
 ### Prerequisites
