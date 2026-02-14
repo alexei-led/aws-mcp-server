@@ -3,7 +3,7 @@
 from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
-from fastmcp.exceptions import ToolError
+from mcp.server.fastmcp.exceptions import ToolError
 
 from aws_mcp_server.cli_executor import CommandExecutionError
 from aws_mcp_server.server import (
@@ -125,10 +125,8 @@ async def test_aws_cli_pipeline_with_context():
         with patch("aws_mcp_server.server.execute_aws_command", new_callable=AsyncMock) as mock_execute:
             mock_execute.return_value = {"status": "error", "output": "Error output"}
 
-            result = await aws_cli_pipeline(command="aws s3 ls", ctx=mock_ctx)
-
-            assert result["status"] == "error"
-            assert result["output"] == "Error output"
+            with pytest.raises(ToolError, match="^Error output$"):
+                await aws_cli_pipeline(command="aws s3 ls", ctx=mock_ctx)
 
             assert mock_ctx.info.call_count == 1
             assert mock_ctx.warning.call_count == 1
