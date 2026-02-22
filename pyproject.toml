@@ -101,4 +101,5 @@ local_scheme = "no-local-version"
 [dependency-groups]
 dev = [
     "pytest-timeout>=2.4.0",
+    "pytest-asyncio>=1.3.0",
 ]
