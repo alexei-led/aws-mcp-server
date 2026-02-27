@@ -1,0 +1,59 @@
+# AWS MCP Server
+
+> MCP server that provides AI assistants with access to AWS CLI, enabling natural language interaction with AWS services through the Model Context Protocol.
+
+AWS MCP Server implements the Model Context Protocol (MCP) to bridge AI assistants (Claude, etc.) with the AWS CLI. It provides tools for executing AWS commands with Unix pipe support, resources for AWS config/profiles/regions, and prompt templates for common AWS tasks. Features Landlock sandboxing on Linux for security isolation and graceful client-disconnect handling on stdio transport.
+
+## Docs
+
+- [README](https://github.com/alexei-led/aws-mcp-server/blob/main/README.md): Full project documentation, installation, configuration, Docker deployment
+- [Development Guide](https://github.com/alexei-led/aws-mcp-server/blob/main/CLAUDE.md): Build commands, architecture, testing patterns, MCP development guidelines
+- [Contributing](https://github.com/alexei-led/aws-mcp-server/blob/main/CONTRIBUTING.md): Contribution guidelines and PR process
+- [Security Policy](https://github.com/alexei-led/aws-mcp-server/blob/main/SECURITY.md): Security disclosures and credential handling
+- [Docker Deployment](https://github.com/alexei-led/aws-mcp-server/tree/main/deploy/docker): Docker setup with Landlock sandboxing
+
+## Architecture
+
+- **Transport:** `stdio` (default), `streamable-http` (web clients), `sse` (deprecated)
+- **Tools:** `aws_cli_help` (read-only docs), `aws_cli_pipeline` (execute with pipes)
+- **Resources:** AWS profiles (`aws://profiles`), regions (`aws://regions`), configuration (`aws://config`)
+- **Prompts:** Well-Architected Framework templates, security assessment, cost optimization, and more
+- **Sandbox:** Landlock LSM on Linux, seccomp-bpf syscall filtering, read-only filesystem paths
+- **Stack:** Python 3.13+, FastMCP, MCP SDK, boto3, uv package manager, ruff linter, setuptools-scm versioning
+
+## API
+
+### Tools
+
+- `aws_cli_help(service, command?)` — Get AWS CLI documentation for any service or command (read-only)
+- `aws_cli_pipeline(command, timeout?)` — Execute AWS CLI commands with Unix pipe support (destructive, openWorld)
+
+### Resources
+
+- `aws://profiles` — List configured AWS credential profiles
+- `aws://regions` — List available AWS regions
+- `aws://config` — Summary of current AWS configuration
+
+### Key Environment Variables
+
+- `AWS_MCP_TIMEOUT` — Command execution timeout in seconds (default: 300)
+- `AWS_MCP_MAX_OUTPUT` — Maximum output size in characters (default: 100000)
+- `AWS_MCP_TRANSPORT` — Transport protocol: `stdio`, `streamable-http`, or `sse` (default: stdio)
+- `AWS_MCP_SANDBOX` — Sandbox mode: `auto`, `disabled`, or `required` (default: auto)
+- `AWS_MCP_SANDBOX_CREDENTIALS` — Credential passing: `env`, `aws_config`, or `both` (default: both)
+
+## Source Layout
+
+```
+src/aws_mcp_server/
+  server.py        # FastMCP instance, tool definitions, MCP spec compliance
+  __main__.py      # Entry point, transport setup, stdio disconnect monitor
+  cli_executor.py  # Command validation, subprocess execution, pipe support
+  sandbox.py       # Landlock LSM + seccomp-bpf sandboxing (Linux)
+  resources.py     # AWS profiles, regions, config MCP resources
+  prompts.py       # MCP prompt templates for common AWS tasks
+  config.py        # Configuration from environment variables
+tests/
+  unit/            # Unit tests (mocked AWS CLI)
+  integration/     # Integration tests (requires AWS CLI + credentials)
+```

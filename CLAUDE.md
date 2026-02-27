@@ -2,96 +2,75 @@
 
 ## Build & Test Commands
 
-### Using uv (recommended)
-
-- Install dependencies: `uv pip install --system -e .`
-- Install dev dependencies: `uv pip install --system -e ".[dev]"`
-- Update lock file: `uv pip compile --system pyproject.toml -o uv.lock`
-- Install from lock file: `uv pip sync --system uv.lock`
-
-### Using pip (alternative)
-
-- Install dependencies: `pip install -e .`
-- Install dev dependencies: `pip install -e ".[dev]"`
-
-### Running the server
-
-- Run server: `python -m aws_mcp_server`
-- Run server with Streamable HTTP transport: `AWS_MCP_TRANSPORT=streamable-http python -m aws_mcp_server`
-- Run server with SSE transport (deprecated): `AWS_MCP_TRANSPORT=sse python -m aws_mcp_server`
-- Run with sandbox disabled: `AWS_MCP_SANDBOX=disabled python -m aws_mcp_server`
-- Run with MCP CLI: `mcp run src/aws_mcp_server/server.py`
-
-### Testing and linting
-
-- Run tests: `pytest`
+- Install all deps: `uv pip install --system -e ".[dev]"`
+- Run tests: `make test` or `python -m pytest -v -m "not integration" --timeout=60`
 - Run single test: `pytest tests/path/to/test_file.py::test_function_name -v`
-- Run tests with coverage: `python -m pytest --cov=src/aws_mcp_server tests/`
 - Run linter: `ruff check src/ tests/`
 - Format code: `ruff format src/ tests/`
+- Run server: `python -m aws_mcp_server`
+- Run with streamable-http: `AWS_MCP_TRANSPORT=streamable-http python -m aws_mcp_server`
+- Run with sandbox disabled: `AWS_MCP_SANDBOX=disabled python -m aws_mcp_server`
+- Update lockfile: `uv pip compile --system pyproject.toml -o uv.lock`
+- Versioning: `setuptools_scm` from Git tags — tag as `v1.x.y` to release
 
-## Technical Stack
+## Architecture
 
-- **Python version**: Python 3.13+
-- **Project config**: `pyproject.toml` for configuration and dependency management
-- **Environment**: Use virtual environment in `.venv` for dependency isolation
-- **Package management**: Use `uv` for faster, more reliable dependency management with lock file
-- **Dependencies**: Separate production and dev dependencies in `pyproject.toml`
-- **Version management**: Use `setuptools_scm` for automatic versioning from Git tags
-- **Linting**: `ruff` for style and error checking
-- **Type checking**: Use VS Code with Pylance for static type checking
-- **Project layout**: Organize code with `src/` layout
+### Server (`server.py`)
+- Two tools: `aws_cli_help` (readOnly) and `aws_cli_pipeline` (destructive, openWorld)
+- `FastMCP` instance with `instructions`, `icons`, `SERVER_DESCRIPTION`
+- Tools use `ToolAnnotations` from `mcp.types` for tool metadata
+- Tool functions return typed dataclasses (`CommandResult`, `CommandHelpResult`)
+- All tool failures raise `ToolError` — FastMCP sets `isError: true` in protocol response (SEP-1303)
 
-## Code Style Guidelines
+### Sandbox (`sandbox.py`)
+- Landlock LSM for filesystem isolation (Linux only)
+- Seccomp-bpf for syscall filtering
+- AWS env vars from `SANDBOX_AWS_ENV_VARS` are passed through to sandboxed processes
+- `AWS_MCP_SANDBOX=disabled` to bypass for development; `required` to fail hard if unavailable
 
-- **Formatting**: Black-compatible formatting via `ruff format`
-- **Imports**: Sort imports with `ruff` (stdlib, third-party, local)
-- **Type hints**: Use native Python type hints (e.g., `list[str]` not `List[str]`)
-- **Documentation**: Google-style docstrings for all modules, classes, functions
-- **Naming**: snake_case for variables/functions, PascalCase for classes
-- **Function length**: Keep functions short (< 30 lines) and single-purpose
-- **PEP 8**: Follow PEP 8 style guide (enforced via `ruff`)
+### CLI Executor (`cli_executor.py`)
+- All commands validated before execution (must start with `aws`)
+- Pipe support: commands can include `| jq`, `| grep`, etc.
+- Timeout handling with configurable default (300s)
+- Returns `{"status": "success"|"error", "output": "..."}` dict
 
-## Python Best Practices
+### Transport & Lifecycle (`__main__.py`)
+- Transports: `stdio` (default), `streamable-http` (recommended for web), `sse` (deprecated)
+- On `stdio`: background thread monitors for client disconnect via `select.poll` or parent PID
+- On `sse`/`streamable-http`: binds to `0.0.0.0` in Docker, `127.0.0.1` otherwise
 
-- **File handling**: Prefer `pathlib.Path` over `os.path`
-- **Debugging**: Use `logging` module instead of `print`
-- **Error handling**: Use specific exceptions with context messages and proper logging
-- **Data structures**: Use list/dict comprehensions for concise, readable code
-- **Function arguments**: Avoid mutable default arguments
-- **Data containers**: Leverage `dataclasses` to reduce boilerplate
-- **Configuration**: Use environment variables (via `python-dotenv`) for configuration
-- **AWS CLI**: Validate all commands before execution (must start with "aws")
-- **Security**: Never store/log AWS credentials, set command timeouts
+### Resources (`resources.py`)
+- `aws://profiles` — parses `~/.aws/credentials` and `~/.aws/config`
+- `aws://regions` — hardcoded list + optional live fetch from EC2 API
+- `aws://config` — summary of current AWS config state
 
-## Development Patterns & Best Practices
+### Prompts (`prompts.py`)
+- 10+ prompt templates for common AWS tasks (Well-Architected, cost optimization, security)
+- Consistent pattern: Pydantic `Field(description=...)` for all parameters
 
-- **Favor simplicity**: Choose the simplest solution that meets requirements
-- **DRY principle**: Avoid code duplication; reuse existing functionality
-- **Configuration management**: Use environment variables for different environments
-- **Focused changes**: Only implement explicitly requested or fully understood changes
-- **Preserve patterns**: Follow existing code patterns when fixing bugs
-- **File size**: Keep files under 300 lines; refactor when exceeding this limit
-- **Test coverage**: Write comprehensive unit and integration tests with `pytest`; include fixtures
-- **Test structure**: Use table-driven tests with parameterization for similar test cases
-- **Mocking**: Use unittest.mock for external dependencies; don't test implementation details
-- **Modular design**: Create reusable, modular components
-- **Logging**: Implement appropriate logging levels (debug, info, error)
-- **Error handling**: Implement robust error handling for production reliability
-- **Security best practices**: Follow input validation and data protection practices
-- **Performance**: Optimize critical code sections when necessary
-- **Dependency management**: Add libraries only when essential
-  - When adding/updating dependencies, update `pyproject.toml` first
-  - Regenerate the lock file with `uv pip compile --system pyproject.toml -o uv.lock`
-  - Install the new dependencies with `uv pip sync --system uv.lock`
+## Testing Patterns
 
-## Development Workflow
+- **Mocking AWS CLI:** `unittest.mock.patch` on `asyncio.create_subprocess_exec`
+- **Sandbox tests:** separate unit (mocked) and integration (requires Linux + Landlock kernel)
+- **Fixtures:** shared fixtures in `conftest.py` for mock subprocess results
+- **Integration tests:** need actual AWS CLI + credentials — skip in CI with `-m "not integration"`
+- **Coverage target:** >80% on `src/aws_mcp_server` — run with `--cov=aws_mcp_server`
+- **Timeout:** always run with `--timeout=60` to avoid CI hangs on sandbox tests
 
-- **Version control**: Commit frequently with clear messages
-- **Versioning**: Use Git tags for versioning (e.g., `git tag -a 1.2.3 -m "Release 1.2.3"`)
-  - For releases, create and push a tag
-  - For development, let `setuptools_scm` automatically determine versions
-- **Impact assessment**: Evaluate how changes affect other codebase areas
-- **Documentation**: Keep documentation up-to-date for complex logic and features
-- **Dependencies**: When adding dependencies, always update the `uv.lock` file
-- **CI/CD**: All changes should pass CI checks (tests, linting, etc.) before merging
+## MCP Development Guidelines
+
+- **Tool annotations:** always set `ToolAnnotations` on new tools (`readOnlyHint`, `destructiveHint`, `openWorldHint`)
+- **Error handling:** raise `ToolError` for all tool failures — never return error status text from tool functions (SEP-1303)
+- **FastMCP patterns:** `@mcp.tool()`, `@mcp.resource()`, `@mcp.prompt()` decorators
+- **Context:** accept `ctx: Context | None = None` in tool functions for progress reporting via `ctx.info()`/`ctx.warning()`
+- **Field descriptions:** use `pydantic.Field(description=...)` for all tool parameters — these become tool schema
+- **Icons:** server-level icon set via `icons=[Icon(src=..., mimeType=...)]` in `FastMCP()`
+- **Description:** server description via `SERVER_DESCRIPTION` prepended to `instructions`
+
+## Security Notes
+
+- **NEVER** log or store AWS credentials (access keys, session tokens, profile names with secrets)
+- **NEVER** disable sandbox in production
+- AWS env vars (`AWS_ACCESS_KEY_ID`, etc.) are in `SANDBOX_AWS_ENV_VARS` — update if new ones added
+- Command validation must reject commands that don't start with `aws` or pipe to non-allowlisted executables
+- `AWS_MCP_SANDBOX=disabled` is for development only — never in Dockerfile or production config
