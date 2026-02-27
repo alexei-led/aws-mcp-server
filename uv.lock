@@ -72,6 +72,7 @@ prod = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest-asyncio" },
     { name = "pytest-timeout" },
 ]
 
@@ -95,7 +96,10 @@ requires-dist = [
 provides-extras = ["dev", "prod"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest-timeout", specifier = ">=2.4.0" }]
+dev = [
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
+]
 
 [[package]]
 name = "beartype"
